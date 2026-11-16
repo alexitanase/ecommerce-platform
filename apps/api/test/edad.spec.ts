@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { newId } from '@ecom/shared';
 import { crearEntorno, vaciarBase, type EntornoPruebas } from './entorno.js';
+import { CABECERA_BUSCADOR, firmaBuscador } from '../src/modules/age/buscador.js';
+
+// El aviso de buscador se firma con este secreto; sin él no se abre nunca.
+process.env['REVALIDATE_SECRET'] ??= 'secreto-de-pruebas-para-revalidar';
 
 /** Ficha pública de producto, o el error que la sustituye si falta verificar la edad. */
 interface FichaOError {
@@ -238,5 +242,56 @@ describe('Vista previa del enlace', () => {
     await entorno.prisma.client.product.updateMany({ where: {}, data: { status: 'DRAFT' } });
 
     expect((await verVistaPrevia(slug)).estado).toBe(404);
+  });
+});
+
+describe('Buscador verificado (Google y Bing, comprobados por IP en la tienda)', () => {
+  /*
+   * Las fichas +18 se indexan por decisión de negocio (16-11-2026). Antes la
+   * tienda dejaba pasar a Google por la puerta, pero la API le respondía 403 y
+   * el robot acababa recibiendo la verificación con `noindex`: el catálogo
+   * entero estaba fuera del buscador.
+   */
+  const avisoBuscador = () => ({
+    [CABECERA_BUSCADOR]: firmaBuscador(process.env['REVALIDATE_SECRET'] as string),
+  });
+
+  it('con el aviso firmado de la tienda, la ficha +18 se sirve completa', async () => {
+    const { slug } = await producto(true);
+
+    const respuesta = await entorno.peticion<FichaOError>({
+      metodo: 'GET',
+      ruta: `/api/v1/catalog/products/by-slug/es/${slug}`,
+      cabeceras: avisoBuscador(),
+    });
+
+    expect(respuesta.estado).toBe(200);
+    expect(respuesta.datos.variants?.length).toBeGreaterThan(0);
+    // Y nunca a una caché compartida: un CDN se la daría a un anónimo.
+    expect(respuesta.cabeceras['cache-control']).toBe('private, no-store');
+  });
+
+  it('con una firma falsa, sigue sin servirse', async () => {
+    const { slug } = await producto(true);
+
+    const respuesta = await entorno.peticion<FichaOError>({
+      metodo: 'GET',
+      ruta: `/api/v1/catalog/products/by-slug/es/${slug}`,
+      cabeceras: { [CABECERA_BUSCADOR]: firmaBuscador('un-secreto-que-no-es-el-bueno') },
+    });
+
+    expect(respuesta.estado).toBe(403);
+  });
+
+  it('el sitemap incluye las fichas +18', async () => {
+    const { slug } = await producto(true);
+
+    const respuesta = await entorno.peticion<{ productos: { slug: string }[] }>({
+      metodo: 'GET',
+      ruta: '/api/v1/content/sitemap/es',
+    });
+
+    expect(respuesta.estado).toBe(200);
+    expect(respuesta.datos.productos.map((p) => p.slug)).toContain(slug);
   });
 });

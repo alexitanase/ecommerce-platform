@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
+import { opcionesDelVisitante } from '@/lib/visitante';
 import { api } from '@/lib/api';
 import { arbolCategorias, navegarCategorias } from '@/lib/categorias';
 import { type ProductoResumen } from '@/components/tarjeta-producto';
@@ -103,7 +103,7 @@ export async function ListadoCatalogo({
    * buscador no encontraba nunca un producto restringido, ni a quien acababa de
    * declarar su edad.
    */
-  const galletas = (await cookies()).toString();
+  const visitante = await opcionesDelVisitante();
 
   /*
    * El árbol se pide junto con los resultados, no después.
@@ -116,7 +116,7 @@ export async function ListadoCatalogo({
    */
   const [resultado, arbol] = await Promise.all([
     api<RespuestaBusqueda>(`/search?${parametros.toString()}`, {
-      ...(galletas ? { cache: 'no-store' as const, cookies: galletas } : {}),
+      ...(visitante ?? {}),
     }).catch((): RespuestaBusqueda => ({
       hits: [],
       total: 0,

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
+import { opcionesDelVisitante } from '@/lib/visitante';
 import { api } from '@/lib/api';
 import { BloquePortada, type Bloque } from '@/components/bloques-portada';
 import { Pagina } from '@/components/ui/pagina';
@@ -52,10 +52,10 @@ export default async function Portada({ params }: { params: Promise<{ locale: st
   // Si la API no responde, la portada sale con lo mínimo en vez de con un
   // error: quien llega a la tienda tiene que poder entrar al catálogo aunque
   // el backend esté teniendo un mal momento.
-  const galletas = (await cookies()).toString();
+  const visitante = await opcionesDelVisitante();
 
   const portada = await api<{ bloques: Bloque[] }>(`/content/home/${locale}`, {
-    ...(galletas ? { cache: 'no-store' as const, cookies: galletas } : { revalidar: 300 }),
+    ...(visitante ?? { revalidar: 300 }),
     etiquetas: ['catalogo', 'portada'],
   }).catch(() => ({ bloques: [] as Bloque[] }));
 

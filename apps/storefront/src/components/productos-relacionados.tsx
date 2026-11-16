@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
+import { opcionesDelVisitante } from '@/lib/visitante';
 import { api } from '@/lib/api';
 import { TarjetaProducto, type ProductoResumen } from '@/components/tarjeta-producto';
 
@@ -30,13 +30,11 @@ export async function ProductosRelacionados({
    * vería un visitante sin verificar: en una tienda cuyo catálogo entero es
    * restringido, eso deja la sección vacía siempre.
    */
-  const galletas = (await cookies()).toString();
+  const visitante = await opcionesDelVisitante();
 
   const productos = await api<ProductoResumen[]>(
     `/catalog/products/${productId}/relacionados?locale=${locale}`,
-    galletas
-      ? { cache: 'no-store' as const, cookies: galletas }
-      : { revalidar: 600, etiquetas: ['catalogo'] },
+    visitante ?? { revalidar: 600, etiquetas: ['catalogo'] },
   ).catch(() => [] as ProductoResumen[]);
 
   if (productos.length === 0) return null;

@@ -7,7 +7,7 @@ el catálogo de formatos, el esquema del documento, las tablas, los permisos, la
 API, el armazón con su layout propio, el editor con capas de texto, forma,
 imagen y botón, la biblioteca de activos y la exportación a PNG, JPG y WebP. El
 progreso tarea a tarea está en las fases 17 y 18 de
-[ROADMAP.html](./ROADMAP.html).
+[la roadmap v1](./docs/historico/ROADMAP-v1.html), ya cerrada.
 
 ---
 

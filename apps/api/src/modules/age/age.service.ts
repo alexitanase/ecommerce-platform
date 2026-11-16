@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { newId } from '@ecom/shared';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+import { newId, type Env } from '@ecom/shared';
+import { ENV } from '../../config/config.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { truncarIp } from '../consent/consent.service.js';
 import { caducidadVerificacion, esMayorDeEdad, verificacionVigente } from './edad.js';
+import { CABECERA_BUSCADOR, esBuscadorAvisado } from './buscador.js';
+
+/** Nombre de la cookie con el identificador de la verificación. */
+export const COOKIE_EDAD = 'age_id';
 
 /**
  * Verificación de edad para el catálogo +18.
@@ -16,7 +22,25 @@ import { caducidadVerificacion, esMayorDeEdad, verificacionVigente } from './eda
 export class AgeService {
   private readonly logger = new Logger(AgeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  /**
+   * ¿Puede esta petición ver el catálogo +18?
+   *
+   * Es la pregunta que se hacen todas las rutas del catálogo, y por eso recibe
+   * la petición entera: además de la cookie y la sesión, cuenta el aviso de la
+   * tienda de que quien mira es Google o Bing verificados por su IP (ver
+   * `buscador.ts`). Las fichas +18 se indexan por decisión de negocio.
+   */
+  async puedeVerAdulto(req: FastifyRequest, userId?: string): Promise<boolean> {
+    if (esBuscadorAvisado(req.headers[CABECERA_BUSCADOR], this.env.REVALIDATE_SECRET)) {
+      return true;
+    }
+    return this.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+  }
 
   /**
    * Registra la declaración de edad.

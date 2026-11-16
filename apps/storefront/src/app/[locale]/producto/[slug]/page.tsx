@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link, getPathname } from '@/i18n/routing';
+import { opcionesDelVisitante } from '@/lib/visitante';
 import { api, ErrorApi } from '@/lib/api';
 import { alternativasDeContenido, urlAbsoluta } from '@/lib/sitio';
 import { tarjetaDeEnlace } from '@/lib/tarjeta-enlace';
@@ -117,13 +117,13 @@ async function cargar(slug: string, locale: string): Promise<Resultado> {
   // Las cookies del visitante se reenvían a mano: en un componente de servidor
   // no hay navegador que las adjunte, y sin ellas la API no sabe que este
   // visitante ya verificó su edad.
-  const galletas = (await cookies()).toString();
+  const visitante = await opcionesDelVisitante();
 
   try {
     const producto = await api<Producto>(`/catalog/products/by-slug/${locale}/${slug}`, {
       // Sin caché compartida cuando hay cookies: la respuesta depende de quién
       // pregunta, y una copia cacheada se le serviría a otra persona.
-      ...(galletas ? { cache: 'no-store' as const, cookies: galletas } : { revalidar: 600 }),
+      ...(visitante ?? { revalidar: 600 }),
       etiquetas: ['catalogo', `producto-${slug}`],
     });
     return { tipo: 'ok', producto };

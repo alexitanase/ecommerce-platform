@@ -33,10 +33,13 @@ export interface InventarioSitemap {
  *
  * Lo que NO sale aquí, y es tan importante como lo que sale:
  *
- *  · **Los productos +18.** El sitemap es un fichero público que se le entrega
- *    a Google: meter ahí las fichas restringidas es publicar la lista completa
- *    del catálogo adulto, y salta la verificación de edad que protege el resto
- *    de la tienda. Se indexan por su categoría, como el resto.
+ *  · Los productos +18 **sí** salen, desde el 16-11-2026. Antes se dejaban
+ *    fuera para no publicar la lista del catálogo adulto, pero con la ficha
+ *    respondiendo `noindex` al buscador el resultado era que casi ninguna ficha
+ *    existía en Google. Ahora el buscador verificado por IP ve la ficha completa
+ *    y el sitemap se la anuncia; la persona sin verificar sigue topándose con la
+ *    puerta de edad al abrir el enlace. Decisión de negocio, a sabiendas del
+ *    riesgo de *cloaking*.
  *  · **Lo que no está publicado**, lo borrado y las categorías vacías. Un
  *    sitemap lleno de URLs que devuelven 404 o «no hay productos» es la forma
  *    más rápida de que Google deje de fiarse del fichero.
@@ -53,7 +56,7 @@ export class SitemapService {
       this.prisma.lectura.productTranslation.findMany({
         where: {
           locale,
-          product: { status: 'ACTIVE', deletedAt: null, isAdult: false },
+          product: { status: 'ACTIVE', deletedAt: null },
         },
         select: { productId: true, slug: true, product: { select: { updatedAt: true } } },
         // Orden estable, y no por gusto: sin `orderBy`, Postgres puede devolver

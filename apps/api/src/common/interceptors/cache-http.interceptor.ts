@@ -10,6 +10,7 @@ import { map } from 'rxjs/operators';
 import crypto from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CACHE_HTTP, type OpcionesCacheHttp } from '../decorators/cache-http.decorator.js';
+import { CABECERA_BUSCADOR } from '../../modules/age/buscador.js';
 
 /**
  * Cabeceras de caché y ETag para las respuestas públicas.
@@ -42,7 +43,15 @@ export class CacheHttpInterceptor implements NestInterceptor {
     // Una respuesta que depende de quién la pide no puede guardarse en una
     // caché compartida: el CDN se la serviría a otro cliente. Es la forma más
     // fácil de filtrar el carrito o los datos de una persona a un desconocido.
-    if (request.headers.authorization ?? request.headers.cookie) {
+    //
+    // Lo mismo con el aviso de buscador verificado: a Google se le sirve la
+    // ficha +18 completa, y esa copia no puede acabar en un CDN que se la
+    // entregue a un visitante sin verificar.
+    if (
+      request.headers.authorization ??
+      request.headers.cookie ??
+      request.headers[CABECERA_BUSCADOR]
+    ) {
       void reply.header('cache-control', 'private, no-store');
       return next.handle();
     }
@@ -69,7 +78,9 @@ export class CacheHttpInterceptor implements NestInterceptor {
         // cacheado y se le serviría también a quien SÍ se verificó —o peor, al
         // revés: la ficha de un producto para adultos servida a alguien sin
         // verificar.
-        void reply.header('vary', 'Accept-Language, Accept-Encoding, Cookie');
+        // El aviso de buscador, por lo mismo: sin él, un CDN delante de la API
+        // le devolvería al robot la copia guardada para un anónimo, el 403.
+        void reply.header('vary', `Accept-Language, Accept-Encoding, Cookie, ${CABECERA_BUSCADOR}`);
 
         const etag = this.etag(cuerpo);
         void reply.header('etag', etag);

@@ -27,7 +27,6 @@ import { BlogService } from './blog.service.js';
 import { SitemapService } from './sitemap.service.js';
 import { CacheHttp } from '../../common/decorators/cache-http.decorator.js';
 import { AgeService } from '../age/age.service.js';
-import { COOKIE_EDAD } from '../age/age.controller.js';
 
 const slug = z
   .string()
@@ -141,7 +140,7 @@ export class ContentController {
   ) {
     // Igual que el buscador: lo decide el servidor mirando la cookie que él
     // mismo puso, no un parámetro que se pueda escribir en la URL.
-    const verificado = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const verificado = await this.age.puedeVerAdulto(req, userId);
 
     return this.portada.portada(locale, verificado);
   }

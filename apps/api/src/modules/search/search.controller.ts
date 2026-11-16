@@ -2,7 +2,6 @@ import { Controller, Get, Post, Query, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { AgeService } from '../age/age.service.js';
-import { COOKIE_EDAD } from '../age/age.controller.js';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator.js';
@@ -28,7 +27,7 @@ export class SearchController {
     // Lo decide el servidor a partir de la verificación, nunca un parámetro de
     // la petición: si viniera del cliente, saltarse el control sería añadir
     // `?incluirAdulto=true` a la URL.
-    const incluirAdulto = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const incluirAdulto = await this.age.puedeVerAdulto(req, userId);
 
     return this.search.buscar({ ...query, incluirAdulto });
   }
@@ -43,7 +42,7 @@ export class SearchController {
   ) {
     // La misma regla que la búsqueda completa: si no, el desplegable dice que
     // un producto no existe y la búsqueda entera lo encuentra.
-    const incluirAdulto = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const incluirAdulto = await this.age.puedeVerAdulto(req, userId);
 
     return this.search.sugerencias(query.q, query.locale, undefined, incluirAdulto);
   }

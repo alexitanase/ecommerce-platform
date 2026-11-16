@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/generated/**',
       'ROADMAP.html',
+      'docs/historico/**',
     ],
   },
   eslint.configs.recommended,

@@ -18,7 +18,7 @@ import type { Env } from '@ecom/shared';
 import { ENV } from '../../config/config.module.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { AgeService } from './age.service.js';
+import { AgeService, COOKIE_EDAD } from './age.service.js';
 import { VerificarEdadDto } from './dto/age.dto.js';
 
 /**
@@ -28,7 +28,7 @@ import { VerificarEdadDto } from './dto/age.dto.js';
  * escribirla, saltarse la verificación sería escribir una línea en la consola
  * del navegador. Así solo el servidor decide quién está verificado.
  */
-export const COOKIE_EDAD = 'age_id';
+export { COOKIE_EDAD };
 
 @ApiTags('Verificación de edad')
 @Controller({ path: 'age', version: '1' })

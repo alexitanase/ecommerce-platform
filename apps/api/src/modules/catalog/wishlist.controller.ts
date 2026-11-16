@@ -20,7 +20,6 @@ import type { UsuarioAutenticado } from '../../common/types/request.js';
 import type { FastifyRequest } from 'fastify';
 import { WishlistService } from './services/wishlist.service.js';
 import { AgeService } from '../age/age.service.js';
-import { COOKIE_EDAD } from '../age/age.controller.js';
 
 const fusionarSchema = z.object({
   /** Lo que el invitado tenía guardado en este navegador. */
@@ -62,7 +61,7 @@ export class WishlistController {
     const idioma = LOCALES.includes(locale as Locale) ? (locale as Locale) : 'es';
     const lista = (ids ?? '').split(',').filter(Boolean);
 
-    const incluirAdulto = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const incluirAdulto = await this.age.puedeVerAdulto(req, userId);
 
     return this.wishlist.resumenDe(lista, idioma, incluirAdulto);
   }

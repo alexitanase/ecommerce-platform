@@ -5,6 +5,7 @@ dist
 coverage
 pnpm-lock.yaml
 ROADMAP.html
+docs/historico/
 
 # Código generado por Prisma: no lo formateamos ni lo revisamos
 packages/db/src/generated

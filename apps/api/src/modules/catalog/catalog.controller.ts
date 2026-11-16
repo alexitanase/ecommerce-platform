@@ -20,7 +20,6 @@ import { puedePublicarse, resumirProblemas } from './services/fidelidad-ficha.js
 import { Public } from '../../common/decorators/public.decorator.js';
 import { CacheHttp } from '../../common/decorators/cache-http.decorator.js';
 import { AgeService } from '../age/age.service.js';
-import { COOKIE_EDAD } from '../age/age.controller.js';
 import type { UsuarioAutenticado } from '../../common/types/request.js';
 import type { ContextoActor } from '../roles/roles.service.js';
 import { AttributesService } from './services/attributes.service.js';
@@ -104,7 +103,7 @@ export class CatalogController {
     @Req() req: FastifyRequest,
     @CurrentUser('id') userId?: string,
   ) {
-    const verificado = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const verificado = await this.age.puedeVerAdulto(req, userId);
     return this.relacionados.de(id, locale, verificado);
   }
 
@@ -126,7 +125,7 @@ export class CatalogController {
     // no está verificado, la ficha de un producto +18 no se sirve y responde
     // 403 pidiendo que verifique la edad (el motivo de que sea 403 y no 404
     // está explicado en `porSlugPublico`).
-    const verificado = await this.age.estaVerificado(req.cookies[COOKIE_EDAD], userId);
+    const verificado = await this.age.puedeVerAdulto(req, userId);
 
     return this.products.porSlugPublico(slug, locale, verificado);
   }
