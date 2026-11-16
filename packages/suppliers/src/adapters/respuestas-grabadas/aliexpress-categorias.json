@@ -1,0 +1,64 @@
+{
+  "aliexpress_ds_category_get_response": {
+    "resp_result": {
+      "result": {
+        "total_result_count": 549,
+        "categories": {
+          "category": [
+            {
+              "category_name": "Food",
+              "category_id": 2
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Canned Food1",
+              "category_id": 200183144
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Grocery",
+              "category_id": 200180142
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Frozen Products",
+              "category_id": 201374104
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Food&Fresh（Spe）",
+              "category_id": 202030002
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Vegetables and Greens",
+              "category_id": 201373004
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Meat",
+              "category_id": 201379402
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Fruits and Berries",
+              "category_id": 201379801
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Bread and Pastries",
+              "category_id": 201378002
+            },
+            {
+              "parent_category_id": 2,
+              "category_name": "Canned Food",
+              "category_id": 201248407
+            }
+          ]
+        }
+      },
+      "resp_code": 200,
+      "resp_msg": "Call succeeds"
+    }
+  }
+}

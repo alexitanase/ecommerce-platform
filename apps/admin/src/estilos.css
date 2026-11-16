@@ -1,0 +1,3346 @@
+@import 'tailwindcss';
+
+/*
+ * Sistema de diseño del panel.
+ *
+ * Comparte los mismos nombres de variables que el storefront para que la marca
+ * configurada se aplique en ambos sin duplicar lógica. Las superficies sí
+ * difieren: el admin trabaja con tablas densas y necesita más contraste entre
+ * niveles que una tienda.
+ *
+ * Todo lo que se repite entre pantallas vive aquí como token o como clase, no
+ * como un `style` suelto en un componente: es la única forma de que 40 rutas
+ * escritas en momentos distintos se sigan pareciendo entre sí.
+ */
+
+:root {
+  /* ── Marca ────────────────────────────────────────────────────────────── */
+  --marca-primario: #4f46e5;
+  --marca-acento: #7c3aed;
+
+  /*
+   * El color de marca cuando se usa como TEXTO, no como fondo.
+   *
+   * En claro coinciden. En oscuro no pueden: el índigo de marca sobre el panel
+   * oscuro da 2,55:1 —la auditoría lo detectó en el elemento activo del menú—
+   * cuando AA exige 4,5. Y el color de marca lo configura cada tienda, así que
+   * no vale con poner un tono más claro a mano: se aclara mezclando con blanco,
+   * que funciona con cualquier marca que se ponga.
+   */
+  --marca-primario-texto: var(--marca-primario);
+
+  /* ── Superficies ──────────────────────────────────────────────────────── */
+  --fondo: #f8fafc;
+  --fondo-panel: #ffffff;
+  --fondo-sutil: #f1f5f9;
+  /* Un cuarto nivel para lo que se apoya sobre `--fondo-sutil` (cabeceras
+     pegajosas de tabla, celdas de totales, cabecera de kanban). Sin él esos
+     bloques se pintaban con el mismo gris que su contenedor y el borde
+     superior desaparecía al hacer scroll. */
+  --fondo-elevado: #e9eef5;
+  --borde: #e2e8f0;
+  --borde-fuerte: #cbd5e1;
+
+  /* ── Texto ────────────────────────────────────────────────────────────── */
+  /*
+   * Los tonos salen de medir el contraste, no de elegirlos a ojo. El mínimo es
+   * 4,5:1 sobre el fondo más claro donde se usan (#f1f5f9), que es el criterio
+   * AA para texto normal.
+   *
+   * `--texto-tenue` estaba en #94a3b8, con 2,5:1: se usa en fechas, ayudas y
+   * cifras secundarias de todo el panel, que es donde se pasan el día quienes
+   * gestionan la tienda.
+   */
+  --texto: #0f172a;
+  --texto-suave: #475569;
+  /*
+   * Se oscureció de #5f6b7d a #55606f: cumplía sobre los fondos planos, pero
+   * dentro de una `.etiqueta` —donde el fondo es un tinte del propio color— se
+   * quedaba en 4,49:1, justo por debajo del 4,5 exigido.
+   */
+  --texto-tenue: #55606f;
+
+  /* ── Color semántico ──────────────────────────────────────────────────── */
+  /*
+   * Colores de estado, medidos DENTRO de la etiqueta.
+   *
+   * Es donde más se usan y donde el fondo no es blanco sino un tinte del propio
+   * color, que sube la luminancia del fondo y baja el contraste. Con los tonos
+   * anteriores (#15803d, #b45309 y #0369a1) la etiqueta se quedaba en 4,15:1,
+   * 4,16:1 y 4,42:1; el verde, el ámbar y el azul bajan un escalón para llegar
+   * a AA en ese contexto. El rojo ya cumplía y se deja como estaba.
+   *
+   * Son CINCO y no hay más a propósito. Cada color que se añade al panel resta
+   * significado a los que ya están: si el morado también quiere decir algo,
+   * el rojo deja de gritar.
+   */
+  --exito: #166534;
+  --aviso: #92400e;
+  --error: #b91c1c;
+  /* Rellenos de la burbuja de avisos: iguales en los dos temas. */
+  --burbuja-error: #b91c1c;
+  --burbuja-aviso: #92400e;
+  --info: #075985;
+  --neutro: var(--texto-tenue);
+
+  /*
+   * Series de datos para los gráficos.
+   *
+   * Separadas del color de marca y del color semántico a propósito. Del
+   * semántico, porque si una barra de «pedidos» fuese verde y otra roja, quien
+   * mira entiende bien/mal donde solo hay dos categorías. Y de la marca, porque
+   * la marca la configura cada tienda: un índigo cualquiera no garantiza que la
+   * segunda serie se distinga de la tercera.
+   *
+   * El orden NO es cosmético: es el mecanismo que hace que dos series contiguas
+   * se distingan también con daltonismo. Está medido con el validador —banda de
+   * luminosidad, mínimo de croma, separación con protanopia/deuteranopia/
+   * tritanopia y contraste contra la superficie— en los dos temas y contra
+   * nuestros fondos reales (#ffffff y #131a26). Cambiar un tono sin volver a
+   * medir rompe la garantía.
+   *
+   * En tema claro, tres de los ocho (aqua, amarillo y magenta) se quedan por
+   * debajo de 3:1 contra el blanco. Es admisible porque nunca van solos: todo
+   * gráfico con dos o más series lleva leyenda, y todos ofrecen ver los datos
+   * como tabla. El color jamás es el único codificador.
+   */
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+  --serie-3: #1baf7a;
+  --serie-4: #eda100;
+  --serie-5: #e87ba4;
+  --serie-6: #008300;
+  --serie-7: #4a3aa7;
+  --serie-8: #e34948;
+
+  /*
+   * Rampa secuencial (magnitud continua: heatmap).
+   *
+   * Un solo tono de claro a oscuro. Nunca un arcoíris: con varios tonos, quien
+   * mira tiene que aprender un orden que no existe en el color.
+   */
+  --sec-1: #cde2fb;
+  --sec-2: #9ec5f4;
+  --sec-3: #6da7ec;
+  --sec-4: #3987e5;
+  --sec-5: #256abf;
+  --sec-6: #184f95;
+  --sec-7: #0d366b;
+
+  /* Divergente: dos polos opuestos (frío/cálido) y un gris neutro en medio. */
+  --div-negativo: #e34948;
+  --div-medio: #f0efec;
+  --div-positivo: #2a78d6;
+
+  /* Rejilla y ejes: un escalón por encima del fondo, finos y continuos. */
+  --rejilla-grafico: #e2e8f0;
+
+  /* ── Espaciado ────────────────────────────────────────────────────────── */
+  /*
+   * Escala de 4 px. No se usan valores intermedios: en cuanto convive un 6 con
+   * un 8 y un 10, las pantallas dejan de alinearse entre sí y nadie sabe decir
+   * por qué "se ve raro".
+   */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 20px;
+  --e6: 24px;
+  --e8: 32px;
+  --e10: 40px;
+  --e12: 48px;
+  --e16: 64px;
+
+  /* Separación estándar entre widgets del lienzo y entre secciones. */
+  --hueco-rejilla: var(--e4);
+  --hueco-seccion: var(--e6);
+
+  /* ── Formas y profundidad ─────────────────────────────────────────────── */
+  --radio-1: 6px;
+  --radio-2: 8px;
+  --radio-3: 12px;
+  --radio-4: 16px;
+  --radio-lleno: 999px;
+
+  --sombra: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px -6px rgb(15 23 42 / 0.12);
+  --sombra-flotante: 0 4px 6px -2px rgb(15 23 42 / 0.08), 0 12px 32px -8px rgb(15 23 42 / 0.24);
+
+  /*
+   * Capas.
+   *
+   * Declaradas en un sitio para que nadie tenga que ir mirando qué z-index puso
+   * el componente de al lado. El orden es el de la realidad: lo que tapa va
+   * después.
+   */
+  --z-pegajoso: 10;
+  --z-cabecera: 20;
+  --z-velo: 30;
+  --z-lateral: 40;
+  --z-flotante: 50;
+  --z-modal: 60;
+  --z-aviso: 70;
+
+  /* ── Movimiento ───────────────────────────────────────────────────────── */
+  --t-rapido: 120ms;
+  --t-normal: 200ms;
+  --t-lento: 320ms;
+  --curva: cubic-bezier(0.2, 0, 0.13, 1);
+
+  /* ── Medidas del armazón ──────────────────────────────────────────────── */
+  --alto-cabecera: 56px;
+  --ancho-lateral: 248px;
+  --ancho-lateral-min: 64px;
+  /* Objetivo táctil mínimo de WCAG 2.2 (2.5.8, nivel AA). */
+  --objetivo-min: 24px;
+}
+
+.dark {
+  /* 45 % de marca sobre blanco: con el índigo por defecto sube de 2,55:1 a
+     7,5:1 sobre el panel oscuro, y sigue leyéndose como el color de la marca. */
+  --marca-primario-texto: color-mix(in srgb, var(--marca-primario) 45%, white);
+
+  --fondo: #0b0f17;
+  --fondo-panel: #131a26;
+  --fondo-sutil: #1a2231;
+  --fondo-elevado: #222c3d;
+  --borde: #232c3d;
+  --borde-fuerte: #35415a;
+
+  --texto: #e8edf5;
+  --texto-suave: #b6c2d4;
+  /* 3,9:1 sobre el panel oscuro: subido para llegar al 4,5 de AA. */
+  --texto-tenue: #94a3b8;
+
+  --exito: #4ade80;
+  --aviso: #fbbf24;
+  --error: #f87171;
+  --info: #38bdf8;
+
+  /*
+   * Los mismos ocho tonos, escalonados para el fondo oscuro y validados como
+   * conjunto contra él. No es un volteo automático del tema claro: aclarar sin
+   * medir saca la mitad de la banda de luminosidad y junta pares que en claro
+   * estaban separados.
+   */
+  --serie-1: #3987e5;
+  --serie-2: #d95926;
+  --serie-3: #199e70;
+  --serie-4: #c98500;
+  --serie-5: #d55181;
+  --serie-6: #008300;
+  --serie-7: #9085e9;
+  --serie-8: #e66767;
+
+  /* La rampa secuencial se invierte: sobre fondo oscuro, «más» es más claro. */
+  --sec-1: #0d366b;
+  --sec-2: #184f95;
+  --sec-3: #256abf;
+  --sec-4: #3987e5;
+  --sec-5: #6da7ec;
+  --sec-6: #9ec5f4;
+  --sec-7: #cde2fb;
+
+  --div-negativo: #e66767;
+  --div-medio: #383835;
+  --div-positivo: #3987e5;
+
+  --rejilla-grafico: #232c3d;
+
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px -6px rgb(0 0 0 / 0.6);
+  --sombra-flotante: 0 4px 6px -2px rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.7);
+}
+
+@layer base {
+  * {
+    border-color: var(--borde);
+  }
+
+  html {
+    /* El ancla de una sección enfocada por teclado o por la paleta de comandos
+       no puede quedar debajo de la cabecera fija. */
+    scroll-padding-top: calc(var(--alto-cabecera) + var(--e4));
+  }
+
+  body {
+    background: var(--fondo);
+    color: var(--texto);
+    font:
+      14px/1.5 ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Foco visible.
+   *
+   * Con `:focus-visible` en vez de `:focus` para que el anillo salga al navegar
+   * con teclado y no al pulsar con ratón. El offset de 2 px es lo que lo hace
+   * legible sobre los botones de color sólido, donde un contorno pegado al
+   * borde se confunde con el propio borde.
+   */
+  :focus-visible {
+    outline: 2px solid var(--marca-primario);
+    outline-offset: 2px;
+    border-radius: var(--radio-1);
+  }
+
+  /* En superficies de marca el anillo índigo sobre índigo no se ve: sobre
+     ellas el foco pasa a blanco. */
+  .sobre-marca :focus-visible {
+    outline-color: #fff;
+  }
+
+  /*
+   * Todo lo pulsable llega al objetivo mínimo de 2.5.8 aunque su contenido sea
+   * un icono de 16 px. Se hace con área táctil, no con tamaño visible, para no
+   * inflar las barras de herramientas densas.
+   */
+  button,
+  [role='button'],
+  a[href],
+  summary,
+  label[for] {
+    position: relative;
+  }
+  .objetivo::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, var(--objetivo-min));
+    height: max(100%, var(--objetivo-min));
+    transform: translate(-50%, -50%);
+  }
+
+  /* Las cifras se comparan en vertical en tablas y KPIs: sin ancho fijo de
+     dígito, las columnas bailan al cambiar de página. */
+  th,
+  td,
+  output,
+  time,
+  .cifra {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--marca-primario) 28%, transparent);
+  }
+
+  /* Barras de scroll discretas dentro del panel, que tiene muchas zonas con
+     scroll propio (lateral, tablas, drawers). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--borde-fuerte) transparent;
+  }
+}
+
+@layer components {
+  /* ── Superficies ──────────────────────────────────────────────────────── */
+  .panel {
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    box-shadow: var(--sombra);
+  }
+  .panel-plano {
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+  }
+
+  /*
+   * Enlace de salto al contenido.
+   *
+   * Oculto hasta que recibe foco. Es el primer elemento tabulable de la página:
+   * sin él, quien navega con teclado tiene que recorrer las 40 entradas del
+   * menú lateral en cada carga para llegar a la tabla que venía a mirar.
+   */
+  .salto {
+    position: absolute;
+    left: var(--e2);
+    top: var(--e2);
+    z-index: var(--z-aviso);
+    transform: translateY(-200%);
+    background: var(--fondo-panel);
+    color: var(--texto);
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radio-2);
+    padding: var(--e2) var(--e3);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--sombra-flotante);
+    transition: transform var(--t-rapido) var(--curva);
+  }
+  .salto:focus {
+    transform: translateY(0);
+  }
+
+  /* ── Armazón ──────────────────────────────────────────────────────────── */
+  .armazon {
+    display: flex;
+    min-height: 100dvh;
+  }
+
+  .lateral {
+    position: fixed;
+    inset-block: 0;
+    left: 0;
+    z-index: var(--z-lateral);
+    display: flex;
+    flex-direction: column;
+    width: var(--ancho-lateral);
+    overflow-y: auto;
+    background: var(--fondo-panel);
+    border-right: 1px solid var(--borde);
+    transform: translateX(-100%);
+    /* Fuera de pantalla no se tabula: un menú invisible que sigue recibiendo el
+       foco es un agujero negro para quien navega con teclado. */
+    visibility: hidden;
+    transition:
+      transform var(--t-normal) var(--curva),
+      width var(--t-normal) var(--curva);
+  }
+  .lateral-abierto {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: var(--sombra-flotante);
+  }
+  @media (min-width: 1024px) {
+    .lateral {
+      position: sticky;
+      top: 0;
+      height: 100dvh;
+      transform: none;
+      visibility: visible;
+      box-shadow: none;
+    }
+    .lateral-estrecho {
+      width: var(--ancho-lateral-min);
+    }
+  }
+
+  .lateral-marca {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    height: var(--alto-cabecera);
+    padding-inline: var(--e4);
+    flex-shrink: 0;
+  }
+  .marca-cuadro {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: var(--radio-2);
+    background: linear-gradient(135deg, var(--marca-primario), var(--marca-acento));
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .lateral-nav {
+    flex: 1;
+    padding-inline: var(--e2);
+    padding-bottom: var(--e4);
+  }
+  .lateral-grupo {
+    margin-bottom: var(--e1);
+    padding-inline: var(--e3);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--texto-tenue);
+  }
+  .lateral-separador {
+    height: 1px;
+    margin: var(--e2) var(--e3);
+    background: var(--borde);
+  }
+  .lateral-enlace {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: var(--e2) var(--e3);
+    border-radius: var(--radio-2);
+    font-size: 14px;
+    color: var(--texto-suave);
+    min-height: var(--e8);
+    transition: background-color var(--t-rapido) var(--curva);
+  }
+  .lateral-enlace:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+  /*
+   * Contraído.
+   *
+   * El `width: 100%` no es decorativo. El enlace va envuelto en el tooltip, que
+   * es un `inline-flex` y por tanto encoge hasta el contenido: sin esto el
+   * enlace medía lo que el icono, se quedaba pegado al borde izquierdo —el
+   * `justify-content: center` no tenía espacio que repartir— y el área
+   * pulsable era de 18 px.
+   */
+  .lateral-enlace-solo-icono {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .lateral-pie {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--e2) var(--e3);
+    border-top: 1px solid var(--borde);
+    flex-shrink: 0;
+  }
+
+  /*
+   * Ajustes propios del carril de iconos.
+   *
+   * Todo lo que se ve cuando el menú está contraído tiene que estar en el mismo
+   * eje vertical: la marca de arriba, los iconos y el botón de desplegar. Con
+   * los rellenos del menú ancho, la marca quedaba descentrada y el botón del pie
+   * pegado a la derecha, así que las tres cosas apuntaban a sitios distintos.
+   */
+  @media (min-width: 1024px) {
+    .lateral-estrecho .lateral-marca,
+    .lateral-estrecho .lateral-pie {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    /* Sin etiqueta al lado, el icono es lo único que identifica la pantalla:
+       18 px se quedan cortos y algo más de alto le da aire al carril. */
+    .lateral-estrecho .lateral-enlace {
+      min-height: 36px;
+    }
+    .lateral-estrecho .lateral-enlace svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .velo {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-velo);
+    background: rgb(2 6 23 / 0.45);
+  }
+
+  .columna {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  /*
+   * Cabecera en rejilla de tres columnas, no en fila.
+   *
+   * Con `flex` solo caben dos repartos y los dos quedan mal: o el buscador y la
+   * cuenta se apelotonan a la izquierda dejando media barra vacía a la derecha,
+   * o la cuenta se va al borde y el hueco muerto se traslada al centro. La
+   * rejilla resuelve el reparto de verdad: laterales iguales y el buscador
+   * centrado respecto a la columna de contenido, así que la barra se lee
+   * equilibrada tanto si el lateral está desplegado como si está contraído.
+   */
+  .cabecera {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-cabecera);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--e3);
+    height: var(--alto-cabecera);
+    padding-inline: var(--e4);
+    border-bottom: 1px solid var(--borde);
+    background: color-mix(in srgb, var(--fondo) 88%, transparent);
+    backdrop-filter: blur(12px);
+  }
+  /*
+   * Cada pieza en su columna, dicho a mano.
+   *
+   * El botón de menú solo existe en móvil, así que en escritorio la colocación
+   * automática corría todo una columna a la izquierda: el buscador acababa en
+   * la columna del botón —encogido a su contenido— y la cuenta ocupaba el
+   * centro. Con la columna declarada, la barra se comporta igual haya dos
+   * piezas o tres.
+   */
+  .cabecera > .buscador-global {
+    grid-column: 2;
+  }
+  .cabecera > :last-child {
+    grid-column: 3;
+    justify-self: end;
+  }
+  /*
+   * Se centra a partir de 1280 px, no antes.
+   *
+   * Por debajo, las dos alas no dan de sí: el ala derecha necesita 200 px para
+   * la campana y la cuenta, y al no caber empujaba el buscador 100 px a la
+   * izquierda —un centrado torcido, que se ve peor que no centrar—. Entre 1024
+   * y 1280 el buscador ocupa el hueco libre, que a esos anchos ya no deja
+   * espacio muerto.
+   */
+  @media (min-width: 1280px) {
+    .cabecera {
+      grid-template-columns: 1fr minmax(0, 520px) 1fr;
+    }
+  }
+
+  /*
+   * Buscador global.
+   *
+   * Con pinta de campo pero botón de verdad: abre la paleta. Se lleva el espacio
+   * libre de la cabecera hasta un máximo, para que en pantallas anchas no acabe
+   * midiendo medio metro.
+   */
+  .buscador-global {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    width: 100%;
+    height: var(--e8);
+    padding-inline: var(--e3);
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radio-2);
+    background: var(--fondo-panel);
+    color: var(--texto-tenue);
+    font-size: 13px;
+    text-align: left;
+  }
+  .buscador-global:hover {
+    border-color: var(--marca-primario);
+    color: var(--texto-suave);
+  }
+  /*
+   * En 390 px el rótulo se partía en dos líneas y se salía del botón, que mide
+   * 32 px de alto: la barra entera se veía rota en móvil. Se recorta con
+   * puntos suspensivos en vez de crecer.
+   */
+  .buscador-texto {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .tecla {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid var(--borde-fuerte);
+    border-bottom-width: 2px;
+    border-radius: var(--radio-1);
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .avatar-boton {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e1);
+    padding-right: var(--e2);
+    border-radius: var(--radio-lleno);
+  }
+  .avatar-boton:hover {
+    background: var(--fondo-sutil);
+  }
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--marca-primario) 16%, transparent);
+    color: var(--marca-primario-texto);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .avatar-email {
+    display: none;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--texto-suave);
+  }
+  @media (min-width: 768px) {
+    .avatar-email {
+      display: block;
+    }
+  }
+
+  .contenido {
+    flex: 1;
+    min-width: 0;
+    padding: var(--e4);
+  }
+  @media (min-width: 640px) {
+    .contenido {
+      padding: var(--e6);
+    }
+  }
+  /* El salto al contenido enfoca el `<main>`; sin esto no se vería que el foco
+     ha llegado, porque un contenedor no tiene estilo de foco propio. */
+  .contenido:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--e3);
+    padding: var(--e3) var(--e4);
+    border-top: 1px solid var(--borde);
+    color: var(--texto-tenue);
+    font-size: 12px;
+  }
+
+  /* ── Campana de avisos ────────────────────────────────────────────────── */
+  /*
+   * La burbuja del contador de avisos.
+   *
+   * Su relleno NO sale de `--error`/`--aviso`: en el tema oscuro esos tokens son
+   * colores CLAROS —pensados para texto sobre fondo oscuro— y con el texto en
+   * blanco a 10 px daban un contraste de 2,76 sobre el 4,5 exigido. Lo detectó
+   * la auditoría del panel en cuanto hubo avisos que contar.
+   *
+   * Se fijan aquí los mismos rellenos oscuros en los dos temas: sobre ellos el
+   * blanco cumple de sobra, y una burbuja roja oscura se distingue igual de bien
+   * sobre un panel claro que sobre uno oscuro.
+   */
+  .burbuja {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding-inline: 3px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  .avisos-panel {
+    width: 340px;
+    max-width: 92vw;
+    padding: 0;
+  }
+  .avisos-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--e2);
+    padding: var(--e3) var(--e3) var(--e2) var(--e4);
+    border-bottom: 1px solid var(--borde);
+  }
+  .avisos-lista {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: var(--e1);
+  }
+  .aviso-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--e3);
+    padding: var(--e2) var(--e3);
+    border-radius: var(--radio-1);
+    font-size: 13px;
+    color: var(--texto);
+    min-height: var(--e8);
+  }
+  .aviso-linea:hover {
+    background: var(--fondo-sutil);
+  }
+  .aviso-marca {
+    width: 10px;
+    flex-shrink: 0;
+  }
+  .avisos-vacio {
+    padding: var(--e6) var(--e4);
+    text-align: center;
+    font-size: 13px;
+  }
+  .avisos-pie {
+    padding: var(--e2) var(--e4);
+    border-top: 1px solid var(--borde);
+    color: var(--texto-tenue);
+    font-size: 11px;
+  }
+
+  /* ── Paleta de comandos ───────────────────────────────────────────────── */
+  .paleta {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    width: 100%;
+    max-width: 100vw;
+    max-height: 100dvh;
+    color: var(--texto);
+  }
+  .paleta::backdrop {
+    background: rgb(2 6 23 / 0.55);
+    backdrop-filter: blur(2px);
+  }
+  .paleta-caja {
+    /* Arriba y no centrada: al abrirla se sigue mirando donde se estaba, y una
+       lista que crece hacia abajo no desplaza lo ya leído. */
+    width: min(560px, calc(100vw - var(--e8)));
+    margin: 10vh auto 0;
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    box-shadow: var(--sombra-flotante);
+    overflow: hidden;
+  }
+  .paleta-buscador {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e3) var(--e4);
+    border-bottom: 1px solid var(--borde);
+  }
+  .paleta-buscador input {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--texto);
+    font-size: 15px;
+  }
+  .paleta-lista {
+    max-height: 46vh;
+    overflow-y: auto;
+    padding: var(--e1);
+  }
+  .paleta-grupo {
+    padding: var(--e2) var(--e3) var(--e1);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--texto-tenue);
+  }
+  .paleta-opcion {
+    display: flex;
+    align-items: center;
+    gap: var(--e3);
+    padding: var(--e2) var(--e3);
+    border-radius: var(--radio-1);
+    font-size: 14px;
+    cursor: pointer;
+    min-height: var(--e8);
+  }
+  .paleta-opcion-activa {
+    background: color-mix(in srgb, var(--marca-primario) 12%, transparent);
+    color: var(--marca-primario-texto);
+  }
+  .paleta-vacio {
+    padding: var(--e6);
+    text-align: center;
+    font-size: 13px;
+    color: var(--texto-tenue);
+  }
+  .paleta-pie {
+    display: flex;
+    gap: var(--e4);
+    padding: var(--e2) var(--e4);
+    border-top: 1px solid var(--borde);
+    color: var(--texto-tenue);
+    font-size: 11px;
+  }
+
+  /* ── Botones ──────────────────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2
+           text-sm font-medium transition-all
+           disabled:pointer-events-none disabled:opacity-50;
+    min-height: var(--e8);
+  }
+  .btn-primario {
+    background: var(--marca-primario);
+    color: #fff;
+  }
+  .btn-primario:hover {
+    filter: brightness(1.1);
+  }
+  .btn-secundario {
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde-fuerte);
+    color: var(--texto);
+  }
+  .btn-secundario:hover {
+    background: var(--fondo-sutil);
+  }
+  .btn-fantasma {
+    color: var(--texto-suave);
+  }
+  .btn-fantasma:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+  .btn-peligro {
+    background: var(--error);
+    color: #fff;
+  }
+
+  /*
+   * Botones del sistema (componente `Boton`).
+   *
+   * `.btn` de arriba se queda para las pantallas que aún lo usan; lo nuevo va
+   * con `.boton`, que separa la forma —altura, hueco, radio, que los pone el
+   * tamaño— del color, que lo pone la variante.
+   */
+  .boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    white-space: nowrap;
+    transition:
+      filter var(--t-rapido) var(--curva),
+      background-color var(--t-rapido) var(--curva),
+      border-color var(--t-rapido) var(--curva);
+    cursor: pointer;
+  }
+  .boton:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .boton-solido:hover {
+    filter: brightness(1.1);
+  }
+  .boton-solido:active {
+    filter: brightness(0.95);
+  }
+  .boton-suave:hover {
+    background: var(--fondo-sutil) !important;
+  }
+  .boton-suave:active {
+    background: var(--fondo-elevado) !important;
+  }
+  .boton-enlace:hover {
+    filter: brightness(1.15);
+  }
+
+  .grupo-botones {
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Los bordes se funden: un grupo tiene que leerse como un bloque, no como
+     tres botones que se tocan. */
+  .grupo-botones > .boton:not(:first-child),
+  .grupo-botones > *:not(:first-child) > .boton {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin-left: -1px;
+  }
+  .grupo-botones > .boton:not(:last-child),
+  .grupo-botones > *:not(:last-child) > .boton {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  /* El botón enfocado se pinta por encima para que su anillo no quede cortado
+     por el vecino. */
+  .grupo-botones > .boton:focus-visible {
+    z-index: 1;
+  }
+
+  .girando {
+    animation: girar 0.7s linear infinite;
+  }
+  @keyframes girar {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ── Menús desplegables ───────────────────────────────────────────────── */
+  .menu {
+    position: absolute;
+    top: calc(100% + var(--e1));
+    z-index: var(--z-flotante);
+    min-width: 200px;
+    padding: var(--e1);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    box-shadow: var(--sombra-flotante);
+  }
+  .menu-opcion {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    width: 100%;
+    padding: var(--e2) var(--e3);
+    border-radius: var(--radio-1);
+    font-size: 13px;
+    text-align: left;
+    color: var(--texto);
+    min-height: var(--e8);
+  }
+  .menu-opcion:hover:not(:disabled),
+  .menu-opcion:focus-visible {
+    background: var(--fondo-sutil);
+  }
+  .menu-opcion:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .menu-separador {
+    height: 1px;
+    margin: var(--e1) 0;
+    background: var(--borde);
+  }
+
+  /* ── Campos ───────────────────────────────────────────────────────────── */
+  /*
+   * 16 px en el móvil, y no es estética.
+   *
+   * Safari en iOS amplía la página al enfocar cualquier campo con letra por
+   * debajo de 16 px: se toca un cuadro, la pantalla salta y se queda ampliada.
+   * El panel se usa sobre todo en escritorio, pero se abre desde el móvil para
+   * mirar un pedido, y ahí pasaba igual que en la tienda.
+   *
+   * Desde `sm` vuelve a 14 px, que es la densidad de una pantalla de datos.
+   * La alternativa —desactivar el pellizco en el viewport— deja sin ampliar a
+   * quien ve poco y la prohíbe el criterio 1.4.4 de la WCAG.
+   */
+  .campo {
+    @apply w-full rounded-lg px-3 py-2 text-base transition-colors sm:text-sm;
+    background: var(--fondo);
+    border: 1px solid var(--borde-fuerte);
+    color: var(--texto);
+  }
+  .campo:focus {
+    border-color: var(--marca-primario);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--marca-primario) 18%, transparent);
+  }
+  .campo[aria-invalid='true'] {
+    border-color: var(--error);
+  }
+  .campo:disabled,
+  .campo[aria-disabled='true'] {
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    cursor: not-allowed;
+  }
+  .campo[readonly] {
+    background: var(--fondo-sutil);
+  }
+
+  /* La etiqueta es parte del campo, no un texto suelto encima: mismo bloque,
+     misma separación en todas las pantallas. */
+  .etiqueta-campo {
+    display: block;
+    margin-bottom: var(--e1);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--texto);
+  }
+  .ayuda-campo {
+    margin-top: var(--e1);
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+  .texto-error {
+    margin-top: var(--e1);
+    font-size: 12px;
+    color: var(--error);
+  }
+
+  /* ── Formularios ──────────────────────────────────────────────────────── */
+  .campo-bloque + .campo-bloque {
+    margin-top: var(--e4);
+  }
+
+  /* Grupo de campo: el adorno vive dentro del borde, y el anillo de foco rodea
+     el conjunto en vez de solo el input. */
+  .grupo-campo {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radio-2);
+    background: var(--fondo);
+    overflow: hidden;
+  }
+  .grupo-campo:focus-within {
+    border-color: var(--marca-primario);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--marca-primario) 18%, transparent);
+  }
+  .grupo-campo .campo {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .grupo-campo .campo:focus {
+    box-shadow: none;
+  }
+  .grupo-adorno {
+    display: grid;
+    place-items: center;
+    padding-inline: var(--e3);
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Casillas y radios: 16 px reales y área pulsable de 40, porque una casilla
+     de 13 px en una tabla densa se falla la mitad de las veces. */
+  .control-linea {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--e2);
+    padding: var(--e1) 0;
+    font-size: 14px;
+    min-height: var(--e8);
+    cursor: pointer;
+  }
+  .control-linea input[type='checkbox'],
+  .control-linea input[type='radio'] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--marca-primario);
+    flex-shrink: 0;
+  }
+
+  .interruptor-bloque {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--e4);
+    padding: var(--e2) 0;
+  }
+  /* `appearance: none` sobre un checkbox real: aspecto de interruptor sin
+     perder teclado, foco ni participación en el formulario. */
+  .interruptor {
+    appearance: none;
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--borde-fuerte);
+    transition: background-color var(--t-rapido) var(--curva);
+    cursor: pointer;
+  }
+  .interruptor::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #fff;
+    transition: transform var(--t-rapido) var(--curva);
+  }
+  .interruptor:checked {
+    background: var(--marca-primario);
+  }
+  .interruptor:checked::after {
+    transform: translateX(18px);
+  }
+  .interruptor:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .rango {
+    flex: 1;
+    accent-color: var(--marca-primario);
+  }
+  .rango-valor {
+    min-width: 48px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .selector-flecha {
+    position: absolute;
+    right: var(--e3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--texto-tenue);
+    pointer-events: none;
+  }
+  .selector-lista {
+    position: absolute;
+    top: calc(100% + var(--e1));
+    left: 0;
+    right: 0;
+    z-index: var(--z-flotante);
+    max-height: 240px;
+    overflow-y: auto;
+    padding: var(--e1);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    box-shadow: var(--sombra-flotante);
+  }
+  .selector-opcion {
+    padding: var(--e2) var(--e3);
+    border-radius: var(--radio-1);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .selector-opcion-activa {
+    background: color-mix(in srgb, var(--marca-primario) 12%, transparent);
+  }
+  .selector-opcion[aria-selected='true'] {
+    font-weight: 600;
+  }
+  .selector-vacio {
+    padding: var(--e3);
+    font-size: 13px;
+    color: var(--texto-tenue);
+    text-align: center;
+  }
+  .multi-lista {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: var(--e2);
+    padding: var(--e1) var(--e2);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+  }
+
+  .soltar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    padding: var(--e8) var(--e4);
+    border: 1px dashed var(--borde-fuerte);
+    border-radius: var(--radio-3);
+    background: var(--fondo-sutil);
+    text-align: center;
+  }
+  .soltar-activo {
+    border-color: var(--marca-primario);
+    background: color-mix(in srgb, var(--marca-primario) 8%, transparent);
+  }
+  /* El input cubre la zona: se puede soltar encima, pulsar en cualquier punto y
+     alcanzarlo con Tab, sin trucos de `display:none`. */
+  .soltar-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .pasos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--e4);
+    padding-bottom: var(--e4);
+    border-bottom: 1px solid var(--borde);
+  }
+  .pasos > li {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    font-size: 13px;
+    color: var(--texto-tenue);
+  }
+  .paso-numero {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid var(--borde-fuerte);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .paso-actual {
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .paso-actual .paso-numero {
+    background: var(--marca-primario);
+    border-color: var(--marca-primario);
+    color: #fff;
+  }
+  .paso-hecho .paso-numero {
+    background: color-mix(in srgb, var(--exito) 18%, transparent);
+    border-color: transparent;
+    color: var(--exito);
+  }
+  .pasos-contenido {
+    padding-block: var(--e5);
+  }
+  .pasos-pie {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--e2);
+    padding-top: var(--e4);
+    border-top: 1px solid var(--borde);
+  }
+
+  /* ── Tablas densas ────────────────────────────────────────────────────── */
+  .tabla {
+    @apply w-full text-sm;
+  }
+  .tabla th {
+    @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide;
+    color: var(--texto-tenue);
+    border-bottom: 1px solid var(--borde);
+  }
+  .tabla td {
+    @apply px-3 py-2.5;
+    border-bottom: 1px solid color-mix(in srgb, var(--borde) 60%, transparent);
+  }
+  .tabla tbody tr:hover {
+    background: var(--fondo-sutil);
+  }
+  /* Cabecera que se queda a la vista al recorrer una tabla larga. Necesita
+     fondo opaco propio: con el translúcido, las filas se leían a través. */
+  .tabla-pegajosa thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-pegajoso);
+    background: var(--fondo-elevado);
+  }
+  .tabla tfoot td {
+    background: var(--fondo-sutil);
+    font-weight: 600;
+    border-top: 1px solid var(--borde-fuerte);
+    border-bottom: 0;
+  }
+  .tabla caption {
+    @apply px-3 py-2 text-left text-xs;
+    color: var(--texto-tenue);
+    caption-side: top;
+  }
+
+  /* Densidad compacta: para quien revisa cientos de filas y prefiere ver más
+     de una vez. No baja de 32 px de alto de fila, que es donde una casilla
+     deja de poder pulsarse con comodidad. */
+  .tabla-compacta td,
+  .tabla-compacta th {
+    padding-top: var(--e1);
+    padding-bottom: var(--e1);
+  }
+
+  .tabla-panel {
+    overflow: hidden;
+  }
+  .tabla-caja {
+    overflow: auto;
+    max-height: 70dvh;
+  }
+  .tabla-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e3);
+    border-bottom: 1px solid var(--borde);
+  }
+  .tabla-buscar {
+    flex: 1;
+    min-width: 180px;
+    max-width: 320px;
+  }
+  .tabla-seleccion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--e3);
+    padding: var(--e2) var(--e3);
+    background: color-mix(in srgb, var(--marca-primario) 8%, transparent);
+    border-bottom: 1px solid var(--borde);
+  }
+  .tabla-estrecha {
+    width: 1%;
+    white-space: nowrap;
+  }
+  .tabla-orden {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--e1);
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+  }
+  .tabla-orden:hover {
+    color: var(--texto);
+  }
+  .tabla-flecha {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+  .tabla-expandir {
+    display: grid;
+    place-items: center;
+    width: var(--e6);
+    height: var(--e6);
+    border-radius: var(--radio-1);
+    color: var(--texto-tenue);
+  }
+  .tabla-expandir:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+  /* La fila marcada lleva fondo Y una barra a la izquierda: en alto contraste
+     el tinte desaparece y sin la barra no se sabría cuáles están marcadas. */
+  .fila-marcada > td {
+    background: color-mix(in srgb, var(--marca-primario) 8%, transparent);
+  }
+  .fila-marcada > td:first-child {
+    box-shadow: inset 3px 0 0 var(--marca-primario);
+  }
+  .fila-detalle > td {
+    background: var(--fondo-sutil);
+    padding: var(--e4);
+  }
+
+  .opcion-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e1) 0;
+    font-size: 13px;
+    min-height: var(--e6);
+  }
+
+  /* ── Orientación: migas, cabecera, pestañas y paginación ──────────────── */
+  .cabecera-pagina {
+    margin-bottom: var(--e5);
+  }
+  .migas {
+    margin-bottom: var(--e2);
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+  .migas ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--e1);
+  }
+  .migas li {
+    display: flex;
+    align-items: center;
+    gap: var(--e1);
+  }
+  .migas-separador {
+    color: var(--borde-fuerte);
+  }
+  .migas-enlace:hover {
+    color: var(--texto);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .pestanas {
+    display: flex;
+    gap: var(--e1);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--borde);
+  }
+  .pestana {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e2) var(--e3);
+    /* El borde inferior existe siempre, transparente: si apareciera solo al
+       activarse, la fila entera daría un salto de 2 px al cambiar de pestaña. */
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    color: var(--texto-suave);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    min-height: var(--e10);
+  }
+  .pestana:hover {
+    color: var(--texto);
+  }
+  .pestana-activa {
+    /* Color Y subrayado: el color no puede ser el único codificador. */
+    color: var(--marca-primario-texto);
+    border-bottom-color: var(--marca-primario);
+  }
+  .pestana-cifra {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    font-size: 11px;
+  }
+  .pestana-panel {
+    padding-top: var(--e4);
+  }
+  .pestana-panel:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .paginacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--e1);
+    margin-top: var(--e4);
+  }
+  .pagina-boton {
+    min-width: var(--e8);
+    height: var(--e8);
+    padding-inline: var(--e2);
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radio-2);
+    background: var(--fondo-panel);
+    color: var(--texto);
+    font-size: 13px;
+  }
+  .pagina-boton:hover:not(:disabled) {
+    background: var(--fondo-sutil);
+  }
+  .pagina-boton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .pagina-activa {
+    background: var(--marca-primario);
+    border-color: var(--marca-primario);
+    color: #fff;
+    font-weight: 600;
+  }
+  .pagina-salto {
+    padding-inline: var(--e1);
+    color: var(--texto-tenue);
+  }
+
+  /* ── Capas flotantes ──────────────────────────────────────────────────── */
+  /*
+   * Panel colgado de un disparador (desplegable y popover). Comparte forma con
+   * `.menu`; lo que cambia es que aquí dentro va contenido, no opciones.
+   */
+  .flotante {
+    position: absolute;
+    top: calc(100% + var(--e1));
+    z-index: var(--z-flotante);
+    min-width: 220px;
+    max-width: min(92vw, 420px);
+    padding: var(--e3);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    box-shadow: var(--sombra-flotante);
+  }
+
+  /* `<dialog>` trae márgenes y borde propios del navegador: se limpian y se
+     centra a mano, que es lo que todos los navegadores hacen igual. */
+  .modal,
+  .drawer {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    max-width: 100vw;
+    max-height: 100dvh;
+    color: var(--texto);
+  }
+  .modal::backdrop,
+  .drawer::backdrop {
+    background: rgb(2 6 23 / 0.55);
+    backdrop-filter: blur(2px);
+  }
+
+  .modal {
+    margin: auto;
+    width: 100%;
+  }
+  .modal-caja {
+    display: flex;
+    flex-direction: column;
+    max-height: min(86dvh, 900px);
+    margin: var(--e4);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-4);
+    box-shadow: var(--sombra-flotante);
+    animation: entrar-modal var(--t-normal) var(--curva);
+  }
+  .modal-sm .modal-caja {
+    max-width: 420px;
+    margin-inline: auto;
+  }
+  .modal-md .modal-caja {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  .modal-lg .modal-caja {
+    max-width: 900px;
+    margin-inline: auto;
+  }
+  @keyframes entrar-modal {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  .modal-cabecera {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--e4);
+    padding: var(--e5) var(--e5) var(--e3);
+  }
+  .modal-cuerpo {
+    padding: 0 var(--e5) var(--e5);
+    overflow-y: auto;
+  }
+  .modal-pie {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--e2);
+    padding: var(--e4) var(--e5);
+    border-top: 1px solid var(--borde);
+    background: var(--fondo-sutil);
+    border-bottom-left-radius: var(--radio-4);
+    border-bottom-right-radius: var(--radio-4);
+  }
+
+  /* El drawer ocupa el alto completo y se pega a un lado. En móvil pasa a ser
+     una hoja a pantalla casi completa: 480 px fijos no caben en 390. */
+  .drawer {
+    height: 100dvh;
+    margin: 0;
+  }
+  .drawer-derecha {
+    margin-left: auto;
+    animation: entrar-derecha var(--t-normal) var(--curva);
+  }
+  .drawer-izquierda {
+    margin-right: auto;
+    animation: entrar-izquierda var(--t-normal) var(--curva);
+  }
+  .drawer-caja {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: min(var(--ancho-drawer, 480px), 100vw);
+    background: var(--fondo-panel);
+    border-left: 1px solid var(--borde);
+  }
+  .drawer-cuerpo {
+    flex: 1;
+    padding: 0 var(--e5) var(--e5);
+    overflow-y: auto;
+  }
+  @keyframes entrar-derecha {
+    from {
+      transform: translateX(24px);
+      opacity: 0;
+    }
+  }
+  @keyframes entrar-izquierda {
+    from {
+      transform: translateX(-24px);
+      opacity: 0;
+    }
+  }
+
+  .tooltip {
+    position: absolute;
+    left: 50%;
+    z-index: var(--z-aviso);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 260px;
+    padding: var(--e1) var(--e2);
+    border-radius: var(--radio-1);
+    background: var(--texto);
+    color: var(--fondo-panel);
+    font-size: 12px;
+    line-height: 1.4;
+    font-weight: 400;
+    text-align: left;
+    pointer-events: none;
+    box-shadow: var(--sombra-flotante);
+  }
+  .tooltip-arriba {
+    bottom: calc(100% + var(--e1));
+  }
+  .tooltip-abajo {
+    top: calc(100% + var(--e1));
+  }
+  /* En `fixed` y con las coordenadas medidas en JS: es la única forma de que la
+     etiqueta salga del menú lateral, que tiene scroll y recorta a sus hijos. */
+  .tooltip-derecha {
+    position: fixed;
+    left: auto;
+    transform: translateY(-50%);
+  }
+
+  /* ── Tablero ──────────────────────────────────────────────────────────── */
+  .tablero {
+    display: flex;
+    gap: var(--e3);
+    overflow-x: auto;
+    padding-bottom: var(--e4);
+  }
+  .tablero-columna {
+    width: 288px;
+    flex: none;
+    padding: var(--e2);
+    border-radius: var(--radio-3);
+    background: var(--fondo-sutil);
+    transition: background-color var(--t-rapido) var(--curva);
+  }
+  /* Se resalta a dónde SÍ se puede soltar, en lugar de dejar que se descubra
+     por ensayo y error qué movimiento está permitido. */
+  .tablero-columna-admite {
+    background: color-mix(in srgb, var(--marca-primario) 8%, var(--fondo-sutil));
+    outline: 2px dashed var(--marca-primario);
+  }
+  .tablero-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--e2);
+  }
+  .tablero-tarjeta {
+    padding: var(--e3);
+    cursor: grab;
+  }
+  .tablero-tarjeta:active {
+    cursor: grabbing;
+  }
+  .tablero-vacio {
+    padding: var(--e6) var(--e2);
+    text-align: center;
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+
+  /* ── Calendario ───────────────────────────────────────────────────────── */
+  .calendario-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--e3);
+    margin-bottom: var(--e3);
+  }
+  .calendario {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: var(--e1);
+    table-layout: fixed;
+  }
+  .calendario th {
+    padding-bottom: var(--e1);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--texto-tenue);
+    text-align: center;
+  }
+  .calendario-dia {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    min-height: 64px;
+    padding: var(--e2);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    background: var(--fondo-panel);
+    text-align: left;
+  }
+  .calendario-dia:hover:not(:disabled) {
+    border-color: var(--borde-fuerte);
+  }
+  .calendario-dia:disabled {
+    cursor: default;
+  }
+  /* El día de hoy se marca con borde, no con relleno: el relleno ya codifica
+     cuántos eventos hay ese día. */
+  .calendario-hoy {
+    border-color: var(--marca-primario);
+    box-shadow: inset 0 0 0 1px var(--marca-primario);
+  }
+  .calendario-numero {
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+  .calendario-cantidad {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .calendario-detalle {
+    font-size: 11px;
+    color: var(--texto-tenue);
+  }
+  .calendario-fuera {
+    background: transparent;
+  }
+
+  /* ── Galería y recorte de imágenes ────────────────────────────────────── */
+  .galeria {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--e3);
+  }
+  .galeria-item {
+    position: relative;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    overflow: hidden;
+    background: var(--fondo-sutil);
+  }
+  .galeria-imagen {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    background: #fff;
+  }
+  /* La principal se marca con una etiqueta y no solo con la posición: en una
+     rejilla que reflowea, «la primera» deja de ser evidente. */
+  .galeria-principal {
+    position: absolute;
+    top: var(--e2);
+    left: var(--e2);
+    padding: 2px var(--e2);
+    border-radius: var(--radio-lleno);
+    background: var(--marca-primario);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .galeria-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--e1);
+    padding: var(--e2);
+    border-top: 1px solid var(--borde);
+    background: var(--fondo-panel);
+  }
+
+  .recorte-lienzo {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0;
+    /* Sin esto, arrastrar sobre la imagen la «coge» como si fuera un enlace y
+       el navegador dibuja su fantasma en lugar de dejar seleccionar. */
+    user-select: none;
+    touch-action: none;
+  }
+  .recorte-imagen {
+    max-width: 100%;
+    max-height: 55dvh;
+    cursor: crosshair;
+  }
+  .recorte-seleccion {
+    position: absolute;
+    border: 1px solid #fff;
+    /* La sombra exterior enorme es lo que oscurece TODO lo de fuera del
+       recorte sin necesidad de cuatro capas superpuestas. */
+    box-shadow: 0 0 0 9999px rgb(2 6 23 / 0.55);
+    cursor: move;
+  }
+  .recorte-tirador {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border: 1px solid var(--marca-primario);
+    border-radius: 2px;
+  }
+  .recorte-nw {
+    top: -6px;
+    left: -6px;
+    cursor: nwse-resize;
+  }
+  .recorte-ne {
+    top: -6px;
+    right: -6px;
+    cursor: nesw-resize;
+  }
+  .recorte-sw {
+    bottom: -6px;
+    left: -6px;
+    cursor: nesw-resize;
+  }
+  .recorte-se {
+    bottom: -6px;
+    right: -6px;
+    cursor: nwse-resize;
+  }
+
+  /* ── Pantallas de error ───────────────────────────────────────────────── */
+  .pagina-error {
+    display: grid;
+    place-items: center;
+    min-height: 60dvh;
+    padding: var(--e8) var(--e4);
+    text-align: center;
+  }
+  .error-codigo {
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--borde-fuerte);
+  }
+
+  /* ── Presentación de datos ────────────────────────────────────────────── */
+  .tarjeta {
+    display: flex;
+    flex-direction: column;
+  }
+  .tarjeta-cabecera {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--e3);
+    padding: var(--e4) var(--e4) var(--e2);
+  }
+  .tarjeta-cuerpo {
+    padding: var(--e4);
+    padding-top: var(--e2);
+    flex: 1;
+  }
+  .tarjeta-pie {
+    padding: var(--e3) var(--e4);
+    border-top: 1px solid var(--borde);
+    background: var(--fondo-sutil);
+    border-bottom-left-radius: var(--radio-3);
+    border-bottom-right-radius: var(--radio-3);
+  }
+
+  .lista-datos {
+    display: grid;
+    gap: var(--e3) var(--e4);
+  }
+  .lista-datos-2 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  .lista-datos-3 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .lista-datos-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lista-datos-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .lista-datos-ancho {
+    grid-column: 1 / -1;
+  }
+  .lista-datos dt {
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+  .lista-datos dd {
+    margin-top: 2px;
+    font-size: 14px;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: var(--e5);
+  }
+  /* El hilo vertical es un pseudoelemento: decoración pura, fuera del árbol de
+     accesibilidad y sin un `div` vacío en el HTML. */
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--borde);
+  }
+  .timeline > li {
+    position: relative;
+    padding-bottom: var(--e4);
+  }
+  .timeline > li:last-child {
+    padding-bottom: 0;
+  }
+  .timeline-punto {
+    position: absolute;
+    left: calc(var(--e5) * -1 + 1px);
+    top: 5px;
+    width: 9px;
+    height: 9px;
+    box-shadow: 0 0 0 3px var(--fondo-panel);
+  }
+
+  .progreso-caja {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+  }
+  .progreso {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--fondo-sutil);
+    overflow: hidden;
+  }
+  .progreso-relleno {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width var(--t-normal) var(--curva);
+  }
+  .progreso-valor {
+    font-size: 12px;
+    color: var(--texto-tenue);
+    min-width: 34px;
+    text-align: right;
+  }
+
+  .insignia {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding-inline: 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--e1);
+    padding: 2px var(--e2);
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radio-1);
+    background: var(--fondo-panel);
+    font-size: 12px;
+  }
+  .tag-punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+  }
+  .tag-quitar {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    color: var(--texto-tenue);
+  }
+  .tag-quitar:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  .avatar-inicial {
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .grupo-avatares {
+    display: inline-flex;
+    align-items: center;
+  }
+  .grupo-avatares > .avatar-inicial + .avatar-inicial,
+  .grupo-avatares > .avatar-resto {
+    margin-left: -6px;
+    box-shadow: 0 0 0 2px var(--fondo-panel);
+  }
+  .avatar-resto {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .lista > li + li {
+    border-top: 1px solid color-mix(in srgb, var(--borde) 60%, transparent);
+  }
+  .lista-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--e3);
+    width: 100%;
+    padding: var(--e2) 0;
+    text-align: left;
+    min-height: var(--e10);
+  }
+  button.lista-linea:hover {
+    background: var(--fondo-sutil);
+  }
+
+  /* ── Tarjetas KPI ─────────────────────────────────────────────────────── */
+  .kpis > .kpi {
+    grid-column: span 1 / span 1;
+  }
+  @media (min-width: 640px) {
+    .kpis > .kpi {
+      grid-column: span 3 / span 3;
+    }
+  }
+  .kpi {
+    padding: var(--e4);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    box-shadow: var(--sombra);
+  }
+  /* El destacado se marca con una línea de marca arriba, no con otro fondo:
+     cambiar el fondo de una tarjeta la saca del sistema de superficies. */
+  .kpi-destacado {
+    box-shadow:
+      var(--sombra),
+      inset 0 3px 0 var(--marca-primario);
+  }
+  .kpi-titulo {
+    display: flex;
+    align-items: center;
+    gap: var(--e1);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--texto-tenue);
+  }
+  .kpi-info {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: help;
+  }
+  .kpi-fila {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--e3);
+    margin-top: var(--e1);
+  }
+  .kpi-valor {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.15;
+    /* Cifras proporcionales a propósito: a este tamaño, el ancho fijo de dígito
+       deja huecos entre las cifras y el número se lee suelto. */
+    font-variant-numeric: normal;
+  }
+  .kpi-delta {
+    margin-top: var(--e1);
+    font-size: 12px;
+  }
+
+  /* ── Gráficos ─────────────────────────────────────────────────────────── */
+  .grafico {
+    display: flex;
+    flex-direction: column;
+    padding: var(--e4);
+  }
+  .grafico-cabecera {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--e3);
+    flex-wrap: wrap;
+    margin-bottom: var(--e2);
+  }
+  .grafico-cuerpo {
+    flex: 1;
+    min-width: 0;
+  }
+  .grafico-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--e3);
+    margin-bottom: var(--e3);
+    font-size: 12px;
+    color: var(--texto-suave);
+  }
+  .grafico-leyenda li {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+  }
+  /* La marca de color va al lado del texto, nunca en el texto: un amarillo o un
+     aqua como color de letra sobre blanco no se leen. */
+  .leyenda-marca {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .grafico-tooltip {
+    min-width: 160px;
+    padding: var(--e2) var(--e3);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    box-shadow: var(--sombra-flotante);
+    font-size: 12px;
+  }
+  .grafico-tooltip-titulo {
+    margin-bottom: var(--e1);
+    font-weight: 600;
+  }
+  .grafico-tooltip-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+  }
+
+  .donut-centro {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+  }
+
+  .heatmap-caja {
+    overflow-x: auto;
+  }
+  .heatmap {
+    border-collapse: separate;
+    border-spacing: 2px;
+    font-size: 11px;
+  }
+  .heatmap th {
+    padding: 2px 4px;
+    color: var(--texto-tenue);
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .heatmap th[scope='row'] {
+    text-align: right;
+  }
+  .heatmap-celda {
+    display: block;
+    width: 100%;
+    min-width: 16px;
+    height: 18px;
+    border-radius: 3px;
+  }
+  .heatmap-escala {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: var(--e2);
+    font-size: 10px;
+    color: var(--texto-tenue);
+  }
+  .heatmap-paso {
+    width: 18px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .gauge {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 100%;
+  }
+  .gauge-texto {
+    position: absolute;
+    bottom: 8%;
+    text-align: center;
+  }
+
+  /* ── Estados de un bloque de datos ────────────────────────────────────── */
+  .estado-bloque {
+    padding: var(--e10) var(--e6);
+    text-align: center;
+  }
+  .estado-icono {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto var(--e3);
+    border-radius: 999px;
+    background: var(--fondo-sutil);
+    color: var(--texto-tenue);
+  }
+  .frescura {
+    font-size: 12px;
+    color: var(--texto-tenue);
+  }
+  .enlace-sutil {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .enlace-sutil:hover {
+    color: var(--texto);
+  }
+
+  .alerta {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--e3);
+    padding: var(--e3) var(--e4);
+    border: 1px solid;
+    border-radius: var(--radio-3);
+  }
+  /* Barra lateral de color: además del tinte de fondo, para que en alto
+     contraste y en escala de grises siga distinguiéndose el tono. */
+  .alerta-marca {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  /* ── Toasts ───────────────────────────────────────────────────────────── */
+  .toasts {
+    position: fixed;
+    right: var(--e4);
+    bottom: var(--e4);
+    z-index: var(--z-aviso);
+    display: flex;
+    flex-direction: column;
+    gap: var(--e2);
+    width: min(380px, calc(100vw - var(--e8)));
+    pointer-events: none;
+  }
+  .toasts-pila {
+    display: flex;
+    flex-direction: column;
+    gap: var(--e2);
+  }
+  .toast {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--e2);
+    padding: var(--e3);
+    background: var(--fondo-panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    box-shadow: var(--sombra-flotante);
+    pointer-events: auto;
+    animation: entrar-toast var(--t-normal) var(--curva);
+  }
+  @keyframes entrar-toast {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .toast-accion {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--marca-primario-texto);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .toast-cerrar {
+    color: var(--texto-tenue);
+    flex-shrink: 0;
+  }
+  .toast-cerrar:hover {
+    color: var(--texto);
+  }
+
+  /* ── Indicadores ──────────────────────────────────────────────────────── */
+  .etiqueta {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  .esqueleto {
+    background: linear-gradient(
+      90deg,
+      var(--fondo-sutil) 25%,
+      var(--borde) 50%,
+      var(--fondo-sutil) 75%
+    );
+    background-size: 200% 100%;
+    animation: brillo 1.4s ease-in-out infinite;
+    border-radius: var(--radio-2);
+  }
+  @keyframes brillo {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/*
+ * Movimiento reducido.
+ *
+ * Quien activa esa preferencia del sistema suele hacerlo por vértigo o por
+ * migrañas, y el brillo del esqueleto es exactamente el patrón que se lo
+ * dispara: una animación infinita que además aparece en todas las pantallas al
+ * cargar. Se queda el bloque quieto, que sigue diciendo lo mismo.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Modo de alto contraste del sistema.
+ *
+ * En ese modo el navegador sustituye los colores por la paleta del usuario, y
+ * todo lo que distinguíamos con un tinte de fondo —etiquetas de estado, fila
+ * seleccionada, pestaña activa— se queda plano. Se recupera la distinción con
+ * borde, que sí sobrevive.
+ */
+@media (forced-colors: active) {
+  .panel,
+  .panel-plano,
+  .etiqueta,
+  .btn {
+    border: 1px solid CanvasText;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+
+/*
+ * Impresión y exportación a PDF.
+ *
+ * Lo que se lleva al papel es el contenido, no la aplicación: sin esto el PDF
+ * sale con el menú lateral ocupando un tercio de la hoja, la cabecera repetida
+ * y los botones de acción, que en papel no sirven para nada. El bloque marcado
+ * con `data-imprimir` es el único que se imprime.
+ */
+@media print {
+  body.imprimiendo .lateral,
+  body.imprimiendo .cabecera,
+  body.imprimiendo .pie,
+  body.imprimiendo .toasts,
+  body.imprimiendo .salto {
+    display: none !important;
+  }
+  body.imprimiendo .contenido {
+    padding: 0;
+  }
+  body.imprimiendo [data-imprimir] {
+    break-inside: avoid;
+  }
+  .panel {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  /* Los fondos de color no se imprimen por defecto y las etiquetas de estado se
+     quedarían en texto flotando; se fuerzan para que el papel diga lo mismo. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@layer utilities {
+  .solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+  .lineas-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .lineas-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /*
+   * Vista previa del editor de descripción.
+   *
+   * Mismas reglas que la tienda pero más sobrias: aquí lo que interesa es ver la
+   * ESTRUCTURA —si las listas son listas y las tablas caben—, no que quede
+   * bonito. Si sale descuadrado en este recuadro, saldrá descuadrado en la
+   * ficha.
+   */
+  .contenido-html {
+    color: var(--texto-suave);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-wrap: break-word;
+  }
+  .contenido-html > * + * {
+    margin-top: var(--e2);
+  }
+  .contenido-html h2,
+  .contenido-html h3,
+  .contenido-html h4 {
+    margin-top: var(--e4);
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .contenido-html strong,
+  .contenido-html b {
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .contenido-html ul {
+    padding-left: var(--e5);
+    list-style: disc;
+  }
+  .contenido-html ol {
+    padding-left: var(--e5);
+    list-style: decimal;
+  }
+  .contenido-html a {
+    color: var(--marca-primario-texto);
+    text-decoration: underline;
+  }
+  .contenido-html img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radio-2);
+  }
+  .contenido-html table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .contenido-html th,
+  .contenido-html td {
+    padding: var(--e1) var(--e2);
+    border: 1px solid var(--borde);
+    text-align: left;
+  }
+
+  /*
+   * Rejilla de fichas.
+   *
+   * Resuelve el problema de las pantallas que eran una columna estrecha pegada a
+   * la izquierda con media pantalla vacía al lado. La respuesta no es estirar esa
+   * columna hasta el borde —un campo de texto de 1.400 px para escribir un NIF no
+   * ayuda a nadie— sino repartir las fichas en tantas columnas como quepan.
+   *
+   * `auto-fill` con un mínimo, y el `min(100%, …)` para que en móvil la ficha no
+   * fuerce scroll horizontal cuando la pantalla es más estrecha que el mínimo.
+   * Quien necesite fichas más anchas cambia `--min-ficha` en el propio elemento.
+   *
+   * `align-items: start` porque si no, todas las fichas de una fila crecen hasta
+   * la más alta y las cortas quedan con un hueco muerto abajo.
+   */
+  .fichas {
+    display: grid;
+    gap: var(--e4);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min-ficha, 22rem)), 1fr));
+    align-items: start;
+  }
+  /* Para fichas que llevan un formulario dentro: con el mínimo normal los
+     campos salen demasiado justos. */
+  .fichas-anchas {
+    --min-ficha: 30rem;
+  }
+
+  /*
+   * Campos de un formulario ancho.
+   *
+   * Misma idea que `.fichas` pero a escala de campo: en una tarjeta que ocupa
+   * todo el ancho, apilar los campos en una sola columna deja un `input` de
+   * 1.500 px para escribir un titular. Se reparten en tantas columnas de 18rem
+   * como quepan, que es más o menos la anchura útil de un campo de texto.
+   */
+  .campos-formulario {
+    display: grid;
+    gap: var(--e3);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    align-items: start;
+  }
+  /* Lo que ya viene subdividido —una pareja de campos, una fila de una lista—
+     ocupa la fila entera: si no, se comprime en el ancho de un campo. */
+  .campos-fila {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * Medida de lectura.
+   *
+   * Para texto corrido, y solo para texto corrido: una línea de 1.600 px hace
+   * perder el renglón al volver a la izquierda. Los datos —tablas, listas,
+   * fichas— no llevan esto: ahí el ancho es información.
+   */
+  .medida-lectura {
+    max-width: 72ch;
+  }
+
+  /*
+   * Rejilla de 12 columnas.
+   *
+   * Es la que ordena el lienzo: un widget ocupa 3, 4, 6 o 12 columnas y nunca
+   * un ancho arbitrario, así que dos pantallas distintas alinean sus bloques en
+   * las mismas verticales. En móvil todo cae a una columna; a partir de `sm`
+   * hay 6 y desde `lg` las 12.
+   */
+  .rejilla {
+    display: grid;
+    gap: var(--hueco-rejilla);
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .rejilla {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .rejilla {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+  }
+
+  /* Anchos declarados como columnas de la rejilla, no como fracciones sueltas. */
+  .col-3,
+  .col-4,
+  .col-6,
+  .col-8,
+  .col-9,
+  .col-12 {
+    grid-column: span 1 / span 1;
+  }
+  @media (min-width: 640px) {
+    .col-3 {
+      grid-column: span 3 / span 3;
+    }
+    .col-4 {
+      grid-column: span 3 / span 3;
+    }
+    .col-6,
+    .col-8,
+    .col-9,
+    .col-12 {
+      grid-column: span 6 / span 6;
+    }
+  }
+  @media (min-width: 1024px) {
+    .col-3 {
+      grid-column: span 3 / span 3;
+    }
+    .col-4 {
+      grid-column: span 4 / span 4;
+    }
+    .col-6 {
+      grid-column: span 6 / span 6;
+    }
+    .col-8 {
+      grid-column: span 8 / span 8;
+    }
+    .col-9 {
+      grid-column: span 9 / span 9;
+    }
+    .col-12 {
+      grid-column: span 12 / span 12;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Studio
+   ═══════════════════════════════════════════════════════════
+
+   El Studio ocupa la ventana entera y gestiona su propio desplazamiento: el
+   lienzo se desplaza dentro de su caja, no arrastrando la página. Sin eso, al
+   arrastrar una capa cerca del borde se movería el documento en lugar de la
+   capa. Ver STUDIO.md. */
+
+@layer components {
+  .studio {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100dvh;
+    background: var(--fondo);
+  }
+
+  .studio-barra {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 0.75rem;
+    height: 3.25rem;
+    border-bottom: 1px solid var(--borde);
+    background: var(--fondo-panel);
+  }
+
+  .studio-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radio-2);
+    font-size: 0.875rem;
+    color: var(--texto-tenue);
+  }
+  .studio-volver:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  .studio-marca {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: var(--radio-2);
+    border-left: 1px solid var(--borde);
+    padding-left: 0.75rem;
+  }
+
+  .studio-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-inline-start: auto;
+  }
+
+  .studio-enlace {
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radio-2);
+    font-size: 0.875rem;
+    color: var(--texto-tenue);
+  }
+  .studio-enlace:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  .studio-cuerpo {
+    min-height: 0;
+    /* `min-width: 0` no es cosmético: sin él, un elemento de rejilla se estira
+       hasta el ancho mínimo de su contenido, y un enlace marcado largo —que no
+       tiene dónde partirse— empuja la página entera fuera de la ventana. */
+    min-width: 0;
+    overflow: auto;
+  }
+
+  .studio-pagina {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .studio-titular {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .studio-rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .studio-tarjeta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    background: var(--fondo-panel);
+    color: inherit;
+    /* Las tarjetas de una fila miden lo mismo aunque su contenido no: sin esto,
+       el botón de cada una queda a una altura distinta y la rejilla se lee como
+       una escalera. */
+    height: 100%;
+  }
+  /* Lo último de la tarjeta se va abajo del todo, alineado con el de al lado. */
+  .studio-tarjeta > .btn:last-child {
+    margin-top: auto;
+  }
+  .studio-tarjeta:hover {
+    border-color: var(--borde-fuerte);
+    box-shadow: var(--sombra);
+  }
+
+  /* ── Selector de formato ── */
+
+  .studio-formatos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.6rem;
+    max-height: 22rem;
+    overflow: auto;
+    padding-right: 0.25rem;
+  }
+
+  .studio-formato {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.6rem 0.4rem;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    background: var(--fondo-panel);
+    text-align: center;
+  }
+  .studio-formato:hover {
+    border-color: var(--borde-fuerte);
+  }
+  .studio-formato-elegido {
+    border-color: var(--marca-primario);
+    box-shadow: inset 0 0 0 1px var(--marca-primario);
+  }
+
+  /* La miniatura respeta la proporción exacta dentro de una caja fija: es lo
+     único que hace comparable un 728×90 con un 160×600 de un vistazo. */
+  .studio-formato-vista {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 4.5rem;
+  }
+  .studio-formato-caja {
+    display: block;
+    background: color-mix(in srgb, var(--marca-primario) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--marca-primario) 45%, transparent);
+    border-radius: 2px;
+  }
+
+  .studio-formato-nombre {
+    font-size: 0.8125rem;
+    line-height: 1.25;
+  }
+  .studio-formato-dato {
+    font-size: 0.75rem;
+    color: var(--texto-tenue);
+  }
+  .studio-formato-aviso {
+    font-size: 0.6875rem;
+    color: var(--aviso);
+  }
+
+  /* ── Biblioteca ── */
+
+  .studio-activos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .studio-activo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    background: var(--fondo-panel);
+    margin: 0;
+  }
+
+  .studio-activo-vista {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radio-2);
+    overflow: hidden;
+    /* Tablero de ajedrez: sin él, un PNG con transparencia se ve blanco sobre
+       blanco y parece que no ha subido nada. */
+    background-color: var(--fondo-sutil);
+    background-size: cover;
+    background-position: center;
+  }
+  .studio-activo-vista img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+}
+
+/* ── Editor del Studio ─────────────────────────────────────
+   Tres columnas y el lienzo en medio, con el desplazamiento dentro de cada
+   caja: si se desplazara la página, arrastrar una capa cerca de un borde
+   movería el documento en lugar de la capa. */
+
+@layer components {
+  .studio-editor {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .studio-editor-barra {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--borde);
+    background: var(--fondo-panel);
+  }
+  .studio-editor-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-inline-start: auto;
+  }
+
+  .studio-editor-cuerpo {
+    display: grid;
+    grid-template-columns: 15rem 1fr 17rem;
+    min-height: 0;
+  }
+  @media (max-width: 900px) {
+    .studio-editor-cuerpo {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr auto;
+    }
+  }
+
+  .studio-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    background: var(--fondo-panel);
+  }
+  .studio-panel-izq {
+    border-right: 1px solid var(--borde);
+  }
+  .studio-panel-der {
+    border-left: 1px solid var(--borde);
+  }
+
+  .studio-herramientas {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--borde);
+  }
+  .studio-herramientas button {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radio-2);
+    color: var(--texto-suave);
+  }
+  .studio-herramientas button:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  /* ── Árbol de capas ── */
+
+  .studio-capas {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem;
+  }
+  .studio-capa-fila {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: var(--radio-2);
+    padding-right: 0.25rem;
+  }
+  .studio-capa-fila:hover {
+    background: var(--fondo-sutil);
+  }
+  .studio-capa-fila-activa {
+    background: color-mix(in srgb, var(--marca-primario) 14%, transparent);
+  }
+  .studio-capa-nombre {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.45rem;
+    font-size: 0.8125rem;
+    text-align: start;
+    color: inherit;
+  }
+  .studio-capa-acciones {
+    display: none;
+    gap: 0.1rem;
+    color: var(--texto-tenue);
+  }
+  .studio-capa-fila:hover .studio-capa-acciones,
+  .studio-capa-fila-activa .studio-capa-acciones {
+    display: flex;
+  }
+  .studio-capa-acciones button:hover {
+    color: var(--texto);
+  }
+
+  /* ── Propiedades ── */
+
+  .studio-props {
+    display: flex;
+    flex-direction: column;
+  }
+  .studio-props-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--borde);
+  }
+  .studio-props-rejilla {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+  .studio-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.6875rem;
+    color: var(--texto-tenue);
+    min-width: 0;
+  }
+  .studio-campo .campo {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.8125rem;
+  }
+  .studio-color {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .studio-color input[type='color'] {
+    width: 1.9rem;
+    height: 1.8rem;
+    padding: 0;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-2);
+    background: none;
+  }
+
+  .studio-alinear {
+    display: flex;
+    gap: 0.15rem;
+  }
+  .studio-alinear button {
+    display: grid;
+    place-items: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: var(--radio-2);
+    color: var(--texto-suave);
+  }
+  .studio-alinear button:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  /* ── Tablero y lienzo ── */
+
+  .studio-tablero {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 0;
+    /* Tablero de cuadros: sin él, una pieza de fondo blanco se confunde con el
+       tablero y no se ve dónde termina. */
+    background-color: var(--fondo-sutil);
+    background-image:
+      linear-gradient(45deg, rgb(148 163 184 / 0.12) 25%, transparent 25%),
+      linear-gradient(-45deg, rgb(148 163 184 / 0.12) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgb(148 163 184 / 0.12) 75%),
+      linear-gradient(-45deg, transparent 75%, rgb(148 163 184 / 0.12) 75%);
+    background-size: 16px 16px;
+    background-position:
+      0 0,
+      0 8px,
+      8px -8px,
+      -8px 0;
+  }
+
+  .studio-zoom {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+    color: var(--texto-tenue);
+    background: var(--fondo-panel);
+    border-bottom: 1px solid var(--borde);
+  }
+  .studio-zoom button {
+    display: grid;
+    place-items: center;
+    min-width: 1.6rem;
+    height: 1.6rem;
+    border-radius: var(--radio-2);
+  }
+  .studio-zoom button:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  .studio-tablero-centro {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    overflow: auto;
+    padding: 2rem;
+  }
+
+  .studio-lienzo {
+    position: relative;
+    box-shadow: var(--sombra-flotante);
+    background: #fff;
+  }
+  .studio-lienzo-dibujo {
+    position: absolute;
+    inset: 0;
+    /* El dibujo no recibe eventos: los recoge la capa de interacción de encima,
+       que es la única que sabe de selección y tiradores. */
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .studio-capa-zona {
+    position: absolute;
+    cursor: move;
+  }
+  .studio-capa-zona:hover {
+    outline: 1px solid color-mix(in srgb, var(--marca-primario) 55%, transparent);
+  }
+  .studio-capa-elegida {
+    outline: 1.5px solid var(--marca-primario);
+  }
+  .studio-capa-bloqueada {
+    cursor: not-allowed;
+  }
+
+  .studio-tirador {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    background: var(--fondo-panel);
+    border: 1.5px solid var(--marca-primario);
+    border-radius: 2px;
+  }
+  .studio-tirador-nw {
+    top: -5px;
+    left: -5px;
+    cursor: nwse-resize;
+  }
+  .studio-tirador-ne {
+    top: -5px;
+    right: -5px;
+    cursor: nesw-resize;
+  }
+  .studio-tirador-sw {
+    bottom: -5px;
+    left: -5px;
+    cursor: nesw-resize;
+  }
+  .studio-tirador-se {
+    bottom: -5px;
+    right: -5px;
+    cursor: nwse-resize;
+  }
+
+  .studio-guia {
+    position: absolute;
+    background: var(--marca-primario);
+    pointer-events: none;
+  }
+  .studio-guia-x {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+  }
+  .studio-guia-y {
+    left: 0;
+    right: 0;
+    height: 1px;
+  }
+
+  .studio-zona-segura {
+    position: absolute;
+    border: 1px dashed rgb(255 255 255 / 0.65);
+    outline: 1px dashed rgb(15 23 42 / 0.35);
+    pointer-events: none;
+  }
+}
+
+/* ── Importación de HTML ───────────────────────────────── */
+
+@layer components {
+  .studio-herramientas-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 0.15rem 0.2rem;
+    background: var(--borde);
+  }
+
+  .studio-modos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .studio-modo {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    cursor: pointer;
+  }
+  .studio-modo:hover {
+    border-color: var(--borde-fuerte);
+  }
+  .studio-modo-elegido {
+    border-color: var(--marca-primario);
+    background: color-mix(in srgb, var(--marca-primario) 6%, transparent);
+  }
+  .studio-modo span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .studio-modo small {
+    color: var(--texto-tenue);
+    line-height: 1.4;
+  }
+}
+
+/* ── Enlace con botón de copiar ────────────────────────────
+   El campo es de solo lectura y ocupa lo que puede: una URL con su marcaje
+   seleccionada a mano se corta a la mitad, y justo el trozo que se pierde es
+   el `utm_content` del que depende saber después qué pieza vendió. */
+
+@layer components {
+  .studio-copiar {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    min-width: 0;
+  }
+  .studio-copiar .campo {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* ── Formularios del Studio en ventana ─────────────────────
+   `campos-formulario` reparte en dos columnas, que es lo que quiere un
+   formulario de campos cortos y lo que estropea uno que gira alrededor de un
+   bloque de código: el textarea se queda en media ventana y los botones se van
+   a la otra mitad. Aquí manda el bloque grande, así que una sola columna. */
+
+@layer components {
+  .studio-formulario {
+    display: flex;
+    flex-direction: column;
+    gap: var(--e3);
+  }
+  .studio-formulario textarea {
+    resize: vertical;
+  }
+}
+
+/* ── Vista previa de una creatividad en la lista ───────────
+   Fondo a cuadros por lo mismo que en el lienzo: una pieza de fondo blanco
+   sobre una tarjeta blanca no deja ver dónde termina. */
+
+@layer components {
+  .studio-vista {
+    display: grid;
+    place-items: center;
+    height: 150px;
+    margin: -0.9rem -0.9rem 0.25rem;
+    border-radius: var(--radio-3) var(--radio-3) 0 0;
+    overflow: hidden;
+    background-color: var(--fondo-sutil);
+    background-image:
+      linear-gradient(45deg, rgb(148 163 184 / 0.14) 25%, transparent 25%),
+      linear-gradient(-45deg, rgb(148 163 184 / 0.14) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgb(148 163 184 / 0.14) 75%),
+      linear-gradient(-45deg, transparent 75%, rgb(148 163 184 / 0.14) 75%);
+    background-size: 14px 14px;
+    background-position:
+      0 0,
+      0 7px,
+      7px -7px,
+      -7px 0;
+  }
+
+  .studio-vista-lienzo {
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--sombra);
+    background: #fff;
+    /* La vista previa no se toca: los clics son para los botones de la tarjeta. */
+    pointer-events: none;
+  }
+}

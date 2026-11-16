@@ -1,0 +1,23 @@
+{
+  "name": "@ecom/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "playwright test --ui",
+    "informe": "playwright show-report",
+    "navegadores": "playwright install --with-deps chromium",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .turbo playwright-report test-results",
+    "e2e": "playwright test",
+    "visual": "docker run --rm --network host -v \"$PWD/../..\":/repo -w /repo/apps/e2e -e HOME=/tmp -e CI=1 -e E2E_VISUAL=1 mcr.microsoft.com/playwright:v1.61.0-noble npx playwright test --project=visual",
+    "visual:actualizar": "docker run --rm --network host -v \"$PWD/../..\":/repo -w /repo/apps/e2e -e HOME=/tmp -e CI=1 -e E2E_VISUAL=1 mcr.microsoft.com/playwright:v1.61.0-noble npx playwright test --project=visual --update-snapshots=all"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.0",
+    "@types/node": "^24.10.1",
+    "typescript": "5.9.3"
+  }
+}

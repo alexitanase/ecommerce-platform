@@ -1,0 +1,136 @@
+# Reglas de alerta.
+#
+# Criterio: cada alerta que suena tiene que exigir una acción humana. Una alerta
+# que se ignora por rutina entrena al equipo a ignorar también la que importa,
+# así que aquí no hay avisos informativos — eso son paneles, no alertas.
+#
+# Los `for:` están puestos para que un pico de diez segundos no despierte a
+# nadie, pero un problema sostenido sí.
+
+groups:
+  # ── Lo que impide vender ────────────────────────────────────
+  - name: negocio
+    rules:
+      - alert: PedidosParados
+        # Nadie ha completado una compra en 30 minutos en horario de actividad.
+        # Con toda la infraestructura en verde, esto es lo que descubre que el
+        # botón de pagar no funciona en un navegador concreto.
+        expr: |
+          sum(increase(orders_total{estado="PAID"}[30m])) == 0
+          and on() (hour() >= 8 < 23)
+        for: 10m
+        labels:
+          severidad: critica
+          equipo: negocio
+        annotations:
+          resumen: 'Ni un solo pedido pagado en 30 minutos'
+          accion: 'Probar el checkout de punta a punta antes de mirar nada más'
+
+      - alert: PagosFallando
+        # Más de un 20% de intentos de pago rechazados: o la pasarela está mal,
+        # o nuestras credenciales han caducado.
+        expr: |
+          sum(rate(payments_total{resultado="fallido"}[10m]))
+          / sum(rate(payments_total[10m])) > 0.2
+        for: 5m
+        labels:
+          severidad: critica
+          equipo: negocio
+        annotations:
+          resumen: 'Más del 20% de los pagos están fallando'
+          accion: 'Revisar el estado de NOWPayments y la caducidad de las claves'
+
+  # ── Lo que rompe el fulfillment ─────────────────────────────
+  - name: colas
+    rules:
+      - alert: ColaAtascada
+        # La cola crece y no baja: los workers están caídos o atrancados. En
+        # dropshipping esto significa pedidos cobrados que no llegan al
+        # proveedor, que es la peor situación posible.
+        expr: sum by (cola) (queue_depth{estado="esperando"}) > 500
+        for: 10m
+        labels:
+          severidad: critica
+          equipo: plataforma
+        annotations:
+          resumen: 'La cola {{ $labels.cola }} acumula {{ $value }} trabajos'
+          accion: 'Comprobar que los workers viven; escalar réplicas si el pico es real'
+
+      - alert: TrabajosFallidosSubiendo
+        expr: sum by (cola) (increase(queue_depth{estado="fallidos"}[15m])) > 20
+        for: 5m
+        labels:
+          severidad: alta
+          equipo: plataforma
+        annotations:
+          resumen: 'La cola {{ $labels.cola }} está fallando trabajos en serie'
+          accion: 'Mirar el centro de trabajos del admin: el error se repite igual en todos'
+
+      - alert: OutboxSinDrenar
+        # El outbox pendiente creciendo significa que hay cambios confirmados en
+        # base de datos cuyo efecto lateral no ha ocurrido: pedidos pagados que
+        # nunca se enviaron al proveedor, correos que no salieron.
+        expr: outbox_pending > 200
+        for: 10m
+        labels:
+          severidad: critica
+          equipo: plataforma
+        annotations:
+          resumen: 'Hay {{ $value }} eventos de dominio sin publicar'
+          accion: 'Revisar el worker del outbox; los efectos laterales están sin ejecutar'
+
+  # ── Salud del proveedor ─────────────────────────────────────
+  - name: proveedores
+    rules:
+      - alert: ProveedorCaido
+        expr: |
+          sum by (proveedor) (rate(supplier_calls_total{resultado="error"}[10m]))
+          / sum by (proveedor) (rate(supplier_calls_total[10m])) > 0.5
+        for: 10m
+        labels:
+          severidad: alta
+          equipo: plataforma
+        annotations:
+          resumen: 'Más de la mitad de las llamadas a {{ $labels.proveedor }} fallan'
+          accion: 'Si es del proveedor, pausar su sincronización para no gastar cupo'
+
+  # ── Salud técnica ───────────────────────────────────────────
+  - name: api
+    rules:
+      - alert: ErroresServidorSostenidos
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severidad: critica
+          equipo: plataforma
+        annotations:
+          resumen: 'Más del 5% de las peticiones devuelven 5xx'
+          accion: 'Buscar en Sentry el error agrupado más frecuente de los últimos 10 min'
+
+      - alert: LatenciaAlta
+        # El p95, no la media: si la media está plana y el p95 se dispara, hay
+        # una parte de los clientes que no puede comprar y la media lo esconde.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severidad: alta
+          equipo: plataforma
+        annotations:
+          resumen: 'El p95 de latencia supera los 2 s'
+          accion: 'Mirar consultas lentas en Postgres y saturación del pool'
+
+      - alert: ApiCaida
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severidad: critica
+          equipo: plataforma
+        annotations:
+          resumen: 'La API no responde al raspado'
+          accion: 'Revisar el contenedor y los logs de arranque'

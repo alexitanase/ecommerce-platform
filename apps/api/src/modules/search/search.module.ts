@@ -1,0 +1,12 @@
+import { Global, Module } from '@nestjs/common';
+import { SearchController } from './search.controller.js';
+import { SearchService } from './search.service.js';
+
+/** Global: el catálogo necesita reindexar cada vez que cambia un producto. */
+@Global()
+@Module({
+  controllers: [SearchController],
+  providers: [SearchService],
+  exports: [SearchService],
+})
+export class SearchModule {}

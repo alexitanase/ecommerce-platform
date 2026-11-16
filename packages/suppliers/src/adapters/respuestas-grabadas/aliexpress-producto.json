@@ -1,0 +1,105 @@
+{
+  "aliexpress_ds_product_get_response": {
+    "result": {
+      "ae_item_base_info_dto": {
+        "product_id": "1005006789012345",
+        "subject": "Auriculares inalámbricos Bluetooth 5.3 con cancelación de ruido",
+        "detail": "<div style=\"width:750px\"><font size=\"3\"><p>Auriculares con cancelación activa de ruido, 40 h de batería.</p><ul><li>Bluetooth 5.3</li><li>Estuche de carga</li></ul></font></div>",
+        "category_id": "63706",
+        "product_status_type": "onSelling"
+      },
+      "ae_item_sku_info_dtos": {
+        "ae_item_sku_info_d_t_o": [
+          {
+            "id": "14:350853#Negro;200007763:201336100",
+            "sku_id": "12000038765432",
+            "sku_attr": "14:350853#Negro;200007763:201336100",
+            "sku_price": "19.99",
+            "currency_code": "EUR",
+            "offer_sale_price": "12.99",
+            "price_include_tax": true,
+            "sku_available_stock": 340,
+            "ae_sku_property_dtos": {
+              "ae_sku_property_d_t_o": [
+                {
+                  "sku_image": "https://ae01.alicdn.com/kf/negro.jpg",
+                  "sku_property_id": 14,
+                  "sku_property_name": "Color",
+                  "sku_property_value": "Negro"
+                },
+                {
+                  "sku_property_id": 200007763,
+                  "sku_property_name": "Envíos desde",
+                  "sku_property_value": "España"
+                }
+              ]
+            }
+          },
+          {
+            "id": "14:200572152#Blanco;200007763:201336100",
+            "sku_id": "12000038765433",
+            "sku_attr": "14:200572152#Blanco;200007763:201336100",
+            "sku_price": "19.99",
+            "currency_code": "EUR",
+            "offer_sale_price": "19.99",
+            "price_include_tax": true,
+            "sku_available_stock": 0,
+            "ae_sku_property_dtos": {
+              "ae_sku_property_d_t_o": [
+                {
+                  "sku_image": "https://ae01.alicdn.com/kf/blanco.jpg",
+                  "sku_property_id": 14,
+                  "sku_property_name": "Color",
+                  "sku_property_value": "Blanco"
+                },
+                {
+                  "sku_property_id": 200007763,
+                  "sku_property_name": "Envíos desde",
+                  "sku_property_value": "España"
+                }
+              ]
+            }
+          },
+          {
+            "id": "14:771#Azul;200007763:201336099",
+            "sku_id": "12000038765434",
+            "sku_attr": "14:771#Azul;200007763:201336099",
+            "sku_price": "24.50",
+            "currency_code": "EUR",
+            "offer_sale_price": "9.79",
+            "price_include_tax": true,
+            "sku_available_stock": 58,
+            "ae_sku_property_dtos": {
+              "ae_sku_property_d_t_o": [
+                {
+                  "sku_image": "https://ae01.alicdn.com/kf/azul.jpg",
+                  "sku_property_id": 14,
+                  "sku_property_name": "Color",
+                  "sku_property_value": "Azul"
+                },
+                {
+                  "sku_property_id": 200007763,
+                  "sku_property_name": "Envíos desde",
+                  "sku_property_value": "China"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "ae_multimedia_info_dto": {
+        "image_urls": "https://ae01.alicdn.com/kf/foto1.jpg;https://ae01.alicdn.com/kf/foto2.jpg"
+      },
+      "logistics_info_dto": {
+        "delivery_time": "12",
+        "ship_to_country": "ES"
+      },
+      "package_info_dto": {
+        "gross_weight": "0.32",
+        "package_length": 18,
+        "package_width": 12,
+        "package_height": 6
+      }
+    }
+  }
+}

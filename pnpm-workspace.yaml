@@ -1,0 +1,42 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Estas dependencias necesitan ejecutar scripts de instalación (binarios nativos,
+# motores de Prisma). pnpm los bloquea por defecto; aquí los autorizamos de forma explícita.
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  argon2: true
+  esbuild: true
+  '@swc/core': true
+  unrs-resolver: true
+  sharp: true
+  # Telemetría de terceros: denegada a propósito, no aporta nada al proyecto.
+  '@scarf/scarf': false
+  # Acelerador nativo opcional de msgpack que usa BullMQ.
+  msgpackr-extract: true
+  # Vigilancia de ficheros nativa que usa Tailwind en desarrollo.
+  '@parcel/watcher': true
+  # Dependencia transitiva del exportador OTLP. Su script de instalación solo
+  # regenera ficheros que el paquete publicado ya trae hechos: denegarlo evita
+  # ejecutar código en la instalación sin perder nada.
+  protobufjs: false
+  # Descarga el binario que sube los source maps a Sentry durante el build.
+  # Sin él, un error de producción sale como `a.b is not a function` en la
+  # línea 1 del bundle minificado, que no dice nada.
+  '@sentry/cli': true
+
+minimumReleaseAgeExclude:
+  - react-hook-form@7.83.0
+  - recharts@3.10.1
+
+# Una sola versión de playwright-core en todo el repo.
+#
+# `@axe-core/playwright` trae la suya, y con dos copias los tipos de `Page` no
+# son compatibles entre sí: pasar la página de una prueba al auditor de axe deja
+# de compilar. Se fija a la misma que usa `@playwright/test`, que además es la
+# que tiene imagen de contenedor publicada para las capturas de regresión.
+overrides:
+  playwright-core: 1.61.0

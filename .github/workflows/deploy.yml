@@ -1,0 +1,224 @@
+name: Despliegue
+
+# ─────────────────────────────────────────────────────────────
+#  De main al servidor, sin pasos manuales.
+#
+#  Se dispara cuando CI TERMINA BIEN en main, no cuando alguien empuja a main.
+#  La diferencia importa: encadenarlo al push desplegaría a la vez que se
+#  comprueban los tipos y los tests, así que un commit roto llegaría a
+#  producción y se enteraría después.
+#
+#  Las imágenes se construyen aquí y no en el servidor. Compilar Next y Nest
+#  se come dos gigas de RAM y varios minutos de CPU; hacerlo en el VPS
+#  ralentiza la tienda mientras se despliega y obliga a pagar un servidor más
+#  grande del que hace falta para servir.
+# ─────────────────────────────────────────────────────────────
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión a desplegar (vacío = el commit actual)'
+        required: false
+        type: string
+
+# Dos despliegues a la vez dejarían el servidor con contenedores de dos
+# versiones distintas. El segundo espera; no se cancela, porque cancelar a
+# mitad de un relevo es peor que esperar.
+concurrency:
+  group: despliegue-produccion
+  cancel-in-progress: false
+
+env:
+  REGISTRO: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ── Puerta ────────────────────────────────────────────────
+  autorizar:
+    name: Comprobar que CI pasó
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - id: version
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="v$(date -u +%Y.%m.%d)-${SHA::7}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Desplegando $VERSION ($SHA)"
+
+  # ── Imágenes ──────────────────────────────────────────────
+  construir:
+    name: Construir ${{ matrix.imagen }}
+    needs: autorizar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - imagen: api
+            dockerfile: apps/api/Dockerfile
+            target: runtime
+          - imagen: migrador
+            dockerfile: apps/api/Dockerfile
+            target: migrador
+          - imagen: storefront
+            dockerfile: apps/storefront/Dockerfile
+            target: runtime
+          - imagen: admin
+            dockerfile: apps/admin/Dockerfile
+            target: runtime
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.autorizar.outputs.sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir y publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: |
+            ${{ env.REGISTRO }}/${{ matrix.imagen }}:${{ needs.autorizar.outputs.version }}
+            ${{ env.REGISTRO }}/${{ matrix.imagen }}:latest
+          # La caché entre ejecuciones es lo que baja el build de ocho minutos
+          # a menos de dos: sin ella, cada despliegue reinstala el árbol entero
+          # de dependencias.
+          cache-from: type=gha,scope=${{ matrix.imagen }}
+          cache-to: type=gha,scope=${{ matrix.imagen }},mode=max
+          provenance: false
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
+            VITE_SENTRY_RELEASE=${{ needs.autorizar.outputs.version }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+
+  # ── Servidor ──────────────────────────────────────────────
+  desplegar:
+    name: Desplegar en producción
+    needs: [autorizar, construir]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # El entorno permite exigir aprobación manual desde la configuración del
+    # repositorio sin tocar este fichero.
+    environment:
+      name: produccion
+      url: https://${{ vars.DOMINIO }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.autorizar.outputs.sha }}
+
+      - name: Preparar acceso SSH
+        env:
+          CLAVE: ${{ secrets.SSH_CLAVE }}
+          HOST_KEY: ${{ secrets.SSH_HOST_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLAVE" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # La huella del servidor se fija por secreto en vez de aceptar la que
+          # venga. `StrictHostKeyChecking=no` es una invitación a que alguien se
+          # ponga en medio y reciba nuestro despliegue.
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Subir configuración de la pila
+        env:
+          DESTINO: ${{ secrets.SSH_USUARIO }}@${{ secrets.SSH_HOST }}
+        run: |
+          # El servidor no tiene copia del repositorio ni credenciales de Git:
+          # recibe solo los ficheros que necesita para levantar la pila.
+          #
+          # SIN `--delete` en la raíz: ahí vive el `.env` de producción, que no
+          # está en el repositorio. Un borrado por sincronización se llevaría
+          # por delante todos los secretos y dejaría la tienda sin poder
+          # arrancar, con la particularidad de que no se podrían recuperar.
+          rsync -az -e "ssh -i ~/.ssh/id_ed25519" \
+            docker-compose.prod.yml \
+            scripts/desplegar.sh \
+            scripts/copia-seguridad.sh \
+            scripts/generar-env.sh \
+            scripts/asegurar-env.sh \
+            "$DESTINO:/opt/tienda/"
+          # En los subdirectorios sí, porque solo contienen ficheros del
+          # repositorio y conviene que no quede configuración huérfana.
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" \
+            infra/observabilidad "$DESTINO:/opt/tienda/infra/"
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" \
+            docker/postgres "$DESTINO:/opt/tienda/docker/"
+          ssh -i ~/.ssh/id_ed25519 "$DESTINO" 'chmod +x /opt/tienda/*.sh'
+
+      - name: Desplegar
+        env:
+          DESTINO: ${{ secrets.SSH_USUARIO }}@${{ secrets.SSH_HOST }}
+          VERSION: ${{ needs.autorizar.outputs.version }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # El token del registro va por la entrada estándar y es de esta
+          # ejecución: caduca sola. En el servidor no queda ninguna credencial
+          # de larga duración para bajar imágenes.
+          ssh -i ~/.ssh/id_ed25519 "$DESTINO" \
+            "echo '$GHCR_TOKEN' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+
+          ssh -i ~/.ssh/id_ed25519 "$DESTINO" \
+            "mkdir -p /opt/tienda/scripts && cp /opt/tienda/desplegar.sh /opt/tienda/scripts/ 2>/dev/null || true; \
+             RAIZ_TIENDA=/opt/tienda bash /opt/tienda/desplegar.sh '$VERSION'"
+
+      - name: Comprobar que la tienda responde
+        env:
+          DOMINIO: ${{ vars.DOMINIO }}
+          DOMINIO_API: ${{ vars.DOMINIO_API }}
+          DOMINIO_ADMIN: ${{ vars.DOMINIO_ADMIN }}
+        run: |
+          # Verificación desde fuera, no desde el servidor: es la única que
+          # comprueba también el proxy, el certificado y el DNS.
+          fallos=0
+          for url in "https://$DOMINIO_API/health" "https://$DOMINIO/api/salud" "https://$DOMINIO_ADMIN/"; do
+            codigo=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 5 --retry-delay 5 --retry-all-errors "$url" || echo 000)
+            echo "$url → $codigo"
+            [ "$codigo" = "200" ] || fallos=$((fallos + 1))
+          done
+          [ "$fallos" -eq 0 ] || { echo "::error::$fallos comprobaciones han fallado tras el despliegue"; exit 1; }
+
+      - name: Revertir si la comprobación falla
+        if: failure()
+        env:
+          DESTINO: ${{ secrets.SSH_USUARIO }}@${{ secrets.SSH_HOST }}
+        run: |
+          echo "::warning::Revirtiendo a la versión anterior"
+          ssh -i ~/.ssh/id_ed25519 "$DESTINO" \
+            "RAIZ_TIENDA=/opt/tienda bash /opt/tienda/desplegar.sh --rollback"

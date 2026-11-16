@@ -1,0 +1,399 @@
+# ─────────────────────────────────────────────────────────────
+#  Pila de producción
+#
+#  Se ejecuta en el servidor con:
+#     docker compose -f docker-compose.prod.yml --env-file .env up -d
+#
+#  Tres principios que explican casi todo lo de abajo:
+#
+#  1. **Solo Traefik toca internet.** Postgres, Redis, Meilisearch y MinIO no
+#     publican puertos: viven en una red interna sin salida y solo hablan con
+#     quien está en esa red. Un Postgres con el 5432 abierto al mundo dura
+#     horas antes del primer intento de acceso, y no hay contraseña que aguante
+#     eso indefinidamente.
+#  2. **Todo contenedor declara cuánta memoria puede gastar.** Sin límites, una
+#     fuga en cualquiera de ellos se lleva por delante a los demás: el kernel
+#     mata al que más ocupa, que suele ser Postgres, y la tienda entera cae por
+#     un fallo de un worker.
+#  3. **Todo contenedor limita sus logs.** Es la causa más tonta de una caída en
+#     producción: el disco se llena de logs en JSON y de repente nada puede
+#     escribir, ni la base de datos.
+# ─────────────────────────────────────────────────────────────
+
+name: tienda
+
+x-registro: &registro
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+x-comun: &comun
+  restart: unless-stopped
+  <<: *registro
+
+services:
+  # ── Proxy ───────────────────────────────────────────────────
+  #
+  # Detrás de Cloudflare en modo **Flexible**: el cifrado lo pone Cloudflare de
+  # cara al cliente y hasta aquí llega HTTP plano, así que este proxy no pide
+  # ni sirve certificados.
+  #
+  # Dos consecuencias que hay que tener presentes:
+  #
+  #  · **Nada de redirigir a HTTPS desde aquí.** Cloudflare pediría otra vez
+  #    por HTTP, el origen volvería a redirigir, y así hasta el bucle
+  #    infinito. Es el fallo clásico del modo Flexible.
+  #  · **El puerto 80 debe estar abierto SOLO a Cloudflare.** Si no, cualquiera
+  #    puede pedir directamente a la IP y saltarse Cloudflare entero: sin
+  #    cifrado, sin WAF y falsificando la cabecera con la IP del cliente.
+  #    Lo cierra `scripts/cortafuegos-cloudflare.sh`.
+  #
+  # Para pasar a Full (strict) con certificado de origen: descomentar el
+  # bloque `websecure`, montar el certificado y cambiar los `entrypoints` de
+  # los routers de `web` a `websecure`.
+  traefik:
+    image: traefik:v3.6
+    <<: *comun
+    command:
+      - --providers.docker=true
+      # Nada se publica por defecto: cada servicio tiene que pedirlo con
+      # `traefik.enable=true`. Al revés, cualquier contenedor nuevo quedaría
+      # expuesto por accidente.
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=tienda_publica
+      - --entrypoints.web.address=:80
+      # ── La IP real del cliente ──
+      #
+      # Sin esto, todas las peticiones parecerían venir de Cloudflare: el
+      # limitador de peticiones bloquearía a toda la tienda de golpe, el
+      # registro de auditoría anotaría la IP del proxy en cada acción y el
+      # control de riesgo de pedidos se quedaría ciego.
+      #
+      # Solo se confía en estos rangos. Cualquier otro origen que mande
+      # `X-Forwarded-For` se ignora, que es lo que impide falsificar la IP.
+      - --entrypoints.web.forwardedheaders.trustedips=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32
+      - --accesslog=true
+      - --accesslog.filters.statuscodes=400-599
+      - --metrics.prometheus=true
+      - --global.sendanonymoususage=false
+    ports:
+      - '80:80'
+    volumes:
+      # Solo lectura: Traefik necesita ver los contenedores, no manejarlos.
+      # El socket de Docker es acceso root al host, así que se cede lo mínimo.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certificados:/certificados
+    networks: [publica]
+    mem_limit: 256m
+
+  # ── Aplicación ──────────────────────────────────────────────
+  api:
+    image: ${REGISTRO}/api:${VERSION:-latest}
+    <<: *comun
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+      # Los workers son otro servicio: si la API los levantara también, cada
+      # réplica traería su propio juego y los trabajos periódicos competirían.
+      WORKERS_ENABLED: 'false'
+      # Detrás de Traefik, la IP del cliente llega en X-Forwarded-For. Sin
+      # esto el limitador de peticiones ve una sola IP —la del proxy— y
+      # bloquea a toda la tienda en cuanto hay algo de tráfico.
+      TRUST_PROXY: 'true'
+      API_HOST: 0.0.0.0
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [publica, interna]
+    mem_limit: 1g
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: tienda_publica
+      traefik.http.routers.api.rule: Host(`${DOMINIO_API}`)
+      traefik.http.routers.api.entrypoints: web
+      traefik.http.services.api.loadbalancer.server.port: '3001'
+      # Traefik saca de rotación al contenedor que no responde. Es la mitad del
+      # despliegue sin caída: el contenedor nuevo no recibe tráfico hasta que
+      # está listo de verdad.
+      traefik.http.services.api.loadbalancer.healthcheck.path: /health
+      traefik.http.services.api.loadbalancer.healthcheck.interval: '10s'
+
+  workers:
+    image: ${REGISTRO}/api:${VERSION:-latest}
+    <<: *comun
+    command: ['node', 'dist/main.workers.js']
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+      WORKERS_ENABLED: 'true'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Sin etiquetas de Traefik ni puertos publicados: los workers no sirven
+    # HTTP y no deben ser alcanzables desde fuera. Pero sí están en la red
+    # `publica` porque necesitan SALIR a internet —hablan con AliExpress, con
+    # la pasarela de pago y con el proveedor de correo—; estar en una red
+    # `internal` los dejaría sin poder confirmar un solo pedido. Estar en una
+    # red no expone nada: lo que expone son los puertos y las etiquetas.
+    networks: [publica, interna]
+    mem_limit: 1g
+    # Comparten imagen con la API, así que heredan su comprobación de salud:
+    # una petición HTTP a un puerto que este proceso no abre. El resultado era
+    # un contenedor marcado como enfermo estando perfectamente, que es peor que
+    # no medir nada —enseña a ignorar los avisos—.
+    #
+    # Si el proceso muere, el contenedor termina y Docker lo levanta solo. Que
+    # los workers vayan al día se mide donde de verdad se ve: la profundidad de
+    # las colas, que ya está en Prometheus con su alerta.
+    healthcheck:
+      disable: true
+
+  # Contenedor de un solo uso: aplica las migraciones pendientes y termina.
+  #
+  # Va en un perfil para que `up -d` no lo arranque nunca por su cuenta. El
+  # despliegue lo invoca a mano ANTES de cambiar las versiones, y si falla, se
+  # aborta sin haber tocado los contenedores que están sirviendo.
+  migrador:
+    image: ${REGISTRO}/migrador:${VERSION:-latest}
+    profiles: [migraciones]
+    env_file: [.env]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [interna]
+    mem_limit: 512m
+    restart: 'no'
+    <<: *registro
+
+  storefront:
+    image: ${REGISTRO}/storefront:${VERSION:-latest}
+    <<: *comun
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      api: { condition: service_started }
+    networks: [publica]
+    mem_limit: 768m
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: tienda_publica
+      # `www` y dominio desnudo al mismo sitio; la canónica la decide Next.
+      traefik.http.routers.tienda.rule: Host(`${DOMINIO}`) || Host(`www.${DOMINIO}`)
+      traefik.http.routers.tienda.entrypoints: web
+      traefik.http.services.tienda.loadbalancer.server.port: '3000'
+      traefik.http.services.tienda.loadbalancer.healthcheck.path: /api/salud
+      traefik.http.services.tienda.loadbalancer.healthcheck.interval: '10s'
+
+  admin:
+    image: ${REGISTRO}/admin:${VERSION:-latest}
+    <<: *comun
+    networks: [publica]
+    mem_limit: 128m
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: tienda_publica
+      traefik.http.routers.admin.rule: Host(`${DOMINIO_ADMIN}`)
+      traefik.http.routers.admin.entrypoints: web
+      traefik.http.services.admin.loadbalancer.server.port: '8080'
+      # El panel llama a `/api` de su propio origen para que la cookie del
+      # refresh token viaje como primera parte. Traefik reenvía esa ruta a la
+      # API sin que el navegador vea otro dominio.
+      traefik.http.routers.admin-api.rule: Host(`${DOMINIO_ADMIN}`) && PathPrefix(`/api`)
+      traefik.http.routers.admin-api.entrypoints: web
+      traefik.http.routers.admin-api.service: api
+      traefik.http.routers.admin-api.priority: '100'
+
+  # ── Datos ───────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    <<: *comun
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Sin esto, los backups y los locales dan errores de collation.
+      LANG: es_ES.utf8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./copias:/copias
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+    mem_limit: 2g
+    shm_size: 256m
+
+  redis:
+    image: redis:7-alpine
+    <<: *comun
+    # `appendonly` para no perder las colas en un reinicio: un pedido pagado
+    # con su trabajo de fulfillment en la cola no puede evaporarse porque el
+    # servidor se reiniciara.
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --maxmemory
+      - '384mb'
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [interna]
+    mem_limit: 512m
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.24
+    <<: *comun
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: 'true'
+      # Meilisearch calcula solo cuánta memoria usar para indexar, y la calcula
+      # sobre la RAM de la MÁQUINA (dos tercios), no sobre el `mem_limit` del
+      # contenedor: no lo ve. Con 8 GB en el servidor se daba permiso para unos
+      # 5 GB dentro de un contenedor de 1 GB, así que al reindexar el catálogo
+      # entero se pasaba del límite y el kernel lo mataba de golpe —sin panic ni
+      # línea de registro, que es lo que costó entender qué pasaba—. Con el
+      # número puesto a mano, indexa más despacio y no se muere.
+      MEILI_MAX_INDEXING_MEMORY: 512Mb
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:7700/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [interna]
+    mem_limit: 1g
+
+  minio:
+    image: minio/minio:latest
+    <<: *comun
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+      # Las imágenes públicas se sirven por el dominio, no por la IP:9000.
+      MINIO_BROWSER_REDIRECT_URL: https://${DOMINIO_MEDIA}/consola
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks: [publica, interna]
+    mem_limit: 512m
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: tienda_publica
+      # Solo el bucket público sale a internet, y solo en lectura. La consola
+      # de administración NO se publica: se llega por túnel SSH.
+      traefik.http.routers.media.rule: Host(`${DOMINIO_MEDIA}`)
+      traefik.http.routers.media.entrypoints: web
+      traefik.http.services.media.loadbalancer.server.port: '9000'
+
+  # Crea los buckets la primera vez y termina.
+  #
+  # Sin esto, MinIO arranca vacío y la primera imagen que alguien sube desde el
+  # panel falla con un «bucket no existe» que no dice qué hay que hacer. El
+  # bucket público se marca como descargable porque de él tiran directamente
+  # los navegadores de los clientes; el privado no, que es donde van facturas y
+  # documentos.
+  minio-init:
+    image: minio/mc:latest
+    profiles: [inicial]
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY};
+      mc mb --ignore-existing local/${S3_BUCKET};
+      mc mb --ignore-existing local/${S3_BUCKET_PRIVATE};
+      mc anonymous set download local/${S3_BUCKET};
+      echo 'Buckets listos';
+      "
+    networks: [interna]
+    restart: 'no'
+    <<: *registro
+
+  # ── Observabilidad (perfil aparte) ──────────────────────────
+  #
+  # Fuera del arranque por defecto: son ~700 MB de RAM que en un servidor de
+  # 8 GB compiten con Postgres. Se levantan con `--profile observabilidad`
+  # cuando hacen falta, y se llega a ellos por túnel SSH —ninguno se publica,
+  # porque un Grafana abierto es un mapa de la operativa del negocio—.
+  prometheus:
+    image: prom/prometheus:latest
+    <<: *comun
+    profiles: [observabilidad]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infra/observabilidad/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observabilidad/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - prometheus_data:/prometheus
+    ports: ['127.0.0.1:9090:9090']
+    networks: [interna]
+    mem_limit: 512m
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    <<: *comun
+    profiles: [observabilidad]
+    volumes:
+      - ./infra/observabilidad/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports: ['127.0.0.1:9093:9093']
+    networks: [interna]
+    mem_limit: 128m
+
+  grafana:
+    image: grafana/grafana:latest
+    <<: *comun
+    profiles: [observabilidad]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - ./infra/observabilidad/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observabilidad/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports: ['127.0.0.1:3030:3000']
+    networks: [interna]
+    mem_limit: 256m
+
+networks:
+  # Traefik y quien tiene que ser alcanzable desde fuera.
+  publica:
+    name: tienda_publica
+  # Sin salida a internet: ni siquiera un contenedor comprometido puede
+  # exfiltrar datos abriendo una conexión saliente desde aquí.
+  interna:
+    name: tienda_interna
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  meili_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+  certificados:

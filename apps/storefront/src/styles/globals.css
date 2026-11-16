@@ -1,0 +1,1185 @@
+@import 'tailwindcss';
+
+/*
+ * Sistema de diseño.
+ *
+ * Los colores se declaran como variables CSS y no como clases fijas de
+ * Tailwind por un motivo concreto: el admin puede cambiar el color de marca en
+ * caliente, y con variables basta con inyectar un `<style>` en el layout. Con
+ * clases compiladas habría que reconstruir la aplicación entera cada vez.
+ *
+ * El tema oscuro se define aquí y no con `dark:` en cada componente, para que
+ * añadir un color nuevo sea tocar un solo sitio.
+ */
+
+@theme {
+  /* Tipografía */
+  --font-sans:
+    var(--marca-fuente, ui-sans-serif), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radios y sombras coherentes en toda la tienda */
+  --radius-card: 0.875rem;
+  --radius-button: 0.625rem;
+}
+
+:root {
+  /* ── Colores de marca · los sobrescribe el admin ── */
+  --marca-primario: #4f46e5;
+  --marca-primario-contraste: #ffffff;
+  --marca-acento: #7c3aed;
+
+  /* ── Superficies ── */
+  --fondo: #ffffff;
+  --fondo-sutil: #f8fafc;
+  --fondo-elevado: #ffffff;
+  --borde: #e2e8f0;
+  --borde-fuerte: #cbd5e1;
+
+  /*
+   * ── Texto ──
+   *
+   * Los tonos están elegidos por contraste medido, no a ojo. El mínimo es
+   * 4,5:1 sobre el fondo MÁS CLARO en el que se usan (`--fondo-sutil`), que
+   * es el criterio AA para texto normal.
+   *
+   * `--texto-tenue` era #94a3b8: precioso y con 2,5:1, ilegible para mucha
+   * gente y suspenso directo en cualquier auditoría. Se usa en ayudas, fechas
+   * y notas al pie —texto que se lee poco pero que cuando se necesita, se
+   * necesita de verdad.
+   */
+  --texto: #0f172a;
+  --texto-suave: #475569;
+  --texto-tenue: #64748b;
+
+  /*
+   * ── Estados ──
+   *
+   * Los tonos "de marca" (verde 600, ámbar 600) se quedaban entre 3,0 y 4,1:1
+   * como texto. Aquí van los que pasan AA; para fondos y bordes de aviso se
+   * sigue usando `color-mix`, que no depende del contraste del texto.
+   */
+  --exito: #15803d;
+  --aviso: #b45309;
+  --error: #dc2626;
+  /*
+   * Rojo para RELLENAR una etiqueta con texto blanco encima.
+   *
+   * No es lo mismo que `--error`, que está pensado para texto sobre el fondo
+   * de la página. En tema oscuro `--error` es un rojo claro —correcto como
+   * texto— y usarlo de fondo con letras blancas daba 2,77:1, menos de la mitad
+   * del mínimo legal. Este tono se mantiene en los dos temas justamente porque
+   * lo que tiene que cumplir es el contraste con el blanco, no con el fondo.
+   */
+  --error-relleno: #c81e1e;
+  --info: #0369a1;
+
+  /*
+   * Color de marca cuando se usa como TEXTO (enlaces, pestaña activa).
+   *
+   * En claro es el propio color; en oscuro hace falta aclararlo o un azul
+   * corporativo sobre fondo casi negro se queda en 2,7:1. Se calcula con
+   * `color-mix` en vez de fijarlo porque el color de marca lo elige cada
+   * tienda desde el panel y no se conoce al compilar.
+   */
+  --marca-texto: var(--marca-primario);
+
+  --sombra-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  --sombra-elevada: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 16px 40px -16px rgb(15 23 42 / 0.2);
+}
+
+/*
+ * Tema oscuro. Se activa con la clase `dark` que pone next-themes, no con
+ * `prefers-color-scheme` a secas: así el usuario puede elegir el tema
+ * explícitamente y su decisión gana sobre la del sistema.
+ */
+.dark {
+  --fondo: #0b0f17;
+  --fondo-sutil: #111827;
+  --fondo-elevado: #161d2b;
+  --borde: #1f2937;
+  --borde-fuerte: #374151;
+
+  --texto: #f1f5f9;
+  --texto-suave: #cbd5e1;
+  /* 3,5:1 sobre el panel elevado: subido para llegar al 4,5 de AA. */
+  --texto-tenue: #94a3b8;
+
+  --exito: #4ade80;
+  --aviso: #fbbf24;
+  --error: #f87171;
+  /* Mismo tono en oscuro: lo que importa es el contraste con el texto blanco
+     que lleva encima, y ese no cambia con el tema. */
+  --error-relleno: #c81e1e;
+  --info: #38bdf8;
+
+  /* El color de marca, aclarado, para poder leerlo sobre el fondo oscuro. */
+  --marca-texto: color-mix(in srgb, var(--marca-primario) 55%, #ffffff);
+
+  --sombra-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --sombra-elevada: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -16px rgb(0 0 0 / 0.7);
+}
+
+@layer base {
+  * {
+    border-color: var(--borde);
+  }
+
+  body {
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Foco visible en todo lo interactivo: sin esto, navegar con teclado es
+     imposible y falla la auditoría de accesibilidad.
+
+     El doble contorno —el de marca por dentro y uno del color del fondo por
+     fuera— hace que se vea igual sobre una foto oscura que sobre el panel
+     blanco. Con un solo color, el foco desaparece sobre la mitad del catálogo. */
+  :focus-visible {
+    outline: 2px solid var(--marca-texto);
+    outline-offset: 2px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 4px var(--fondo);
+  }
+
+  /*
+   * Salto directo al contenido.
+   *
+   * Es el primer elemento enfocable de la página: quien navega con teclado o
+   * lector de pantalla se ahorra pasar por el buscador y los doce enlaces de
+   * la cabecera en CADA página. Solo aparece al enfocarlo.
+   */
+  .saltar-al-contenido {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    padding: 0.75rem 1rem;
+    background: var(--fondo-elevado);
+    color: var(--texto);
+    border: 1px solid var(--borde-fuerte);
+    border-radius: var(--radius-button);
+  }
+
+  .saltar-al-contenido:focus {
+    left: 1rem;
+    top: 1rem;
+  }
+
+  /*
+   * Objetivo táctil mínimo.
+   *
+   * 24 px es el mínimo del criterio 2.5.8 de WCAG 2.2. Los iconos de la
+   * cabecera y los botones de cantidad se quedaban por debajo en móvil, que es
+   * justo donde importa.
+   */
+  button,
+  [role='button'],
+  a.btn {
+    min-height: 2.25rem;
+  }
+
+  /* Respeta a quien ha pedido menos animación en su sistema. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── Botones ── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-[--radius-button]
+           px-4 py-2.5 text-sm font-medium transition-all
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primario {
+    background: var(--marca-primario);
+    color: var(--marca-primario-contraste);
+  }
+  .btn-primario:hover {
+    filter: brightness(1.08);
+  }
+  .btn-primario:active {
+    transform: translateY(1px);
+  }
+
+  .btn-secundario {
+    background: var(--fondo-elevado);
+    color: var(--texto);
+    border: 1px solid var(--borde-fuerte);
+  }
+  .btn-secundario:hover {
+    background: var(--fondo-sutil);
+  }
+
+  .btn-fantasma {
+    color: var(--texto-suave);
+  }
+  .btn-fantasma:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+
+  /*
+   * Botón que solo lleva icono.
+   *
+   * Estaba escrito como `h-9 w-9 p-0` en los cuatro sitios donde hace falta.
+   * Con una clase, cambiar el tamaño de los iconos de la cabecera deja de ser
+   * buscar y reemplazar. Necesita `aria-label` sí o sí: sin texto visible, es
+   * lo único que lo describe.
+   */
+  .btn-icono {
+    @apply h-9 w-9 shrink-0 p-0;
+  }
+
+  /*
+   * Botón de acción principal de una pantalla: añadir al carrito, pagar.
+   *
+   * Más alto que el normal a propósito. Es el objetivo que más se pulsa en
+   * móvil y el que más caro sale fallar, y 44 px es el tamaño que recomienda
+   * Apple para cualquier cosa que se toque con el dedo.
+   */
+  .btn-grande {
+    @apply h-11 px-5 text-base;
+  }
+
+  /*
+   * Botón secundario de una fila: compartir, filtros rápidos.
+   *
+   * Solo estrecha el relleno y el texto; el alto lo sigue fijando el mínimo de
+   * 36 px que la base pone a todos los botones, y ahí se queda a propósito. Es
+   * una acción de apoyo, no la principal, pero se toca con el dedo igual: por
+   * debajo de 36 px se falla el objetivo y se pulsa el de al lado.
+   */
+  .btn-pequeno {
+    @apply gap-1.5 px-3 py-1.5 text-xs;
+  }
+
+  /* ── Tarjetas ── */
+  .card {
+    background: var(--fondo-elevado);
+    border: 1px solid var(--borde);
+    border-radius: var(--radius-card);
+    box-shadow: var(--sombra-card);
+  }
+
+  /*
+   * ── Campos de formulario ──
+   *
+   * **16 px en el móvil, y no es una decisión estética.** Safari en iOS hace
+   * zoom automático al enfocar cualquier campo cuya letra mida menos de 16 px:
+   * el usuario toca el buscador, la página salta y se queda ampliada, y para
+   * volver hay que pellizcar. Pasaba en el buscador, en el acceso y en el
+   * checkout, que es donde peor sienta.
+   *
+   * La otra forma de evitarlo —`maximum-scale=1, user-scalable=no` en el
+   * viewport— desactiva el pellizco en toda la tienda y es justo lo que prohíbe
+   * el criterio 1.4.4 de la WCAG: alguien con poca visión se queda sin poder
+   * ampliar nada. Esa puerta no se toca.
+   *
+   * Desde `sm` vuelven a 14 px, que es la densidad que tiene el resto del
+   * escritorio y donde el zoom de iOS no existe.
+   */
+  .campo {
+    @apply w-full rounded-[--radius-button] px-3.5 py-2.5 text-base transition-colors sm:text-sm;
+    background: var(--fondo);
+    border: 1px solid var(--borde-fuerte);
+    color: var(--texto);
+  }
+  .campo::placeholder {
+    color: var(--texto-tenue);
+  }
+  .campo:focus {
+    border-color: var(--marca-primario);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--marca-primario) 18%, transparent);
+  }
+  .campo[aria-invalid='true'] {
+    border-color: var(--error);
+  }
+
+  /*
+   * ── Buscador a pantalla completa (móvil) ──
+   *
+   * `100dvh` y no `100vh`: en el móvil `vh` cuenta la barra del navegador como
+   * si no estuviera, así que la última sugerencia queda por debajo del borde
+   * de la pantalla y no hay forma de llegar a ella. Es el mismo motivo por el
+   * que el visor de fotos usa `dvh`.
+   *
+   * Por encima de la cabecera pegajosa (z-40) y del desplegable de sugerencias
+   * del escritorio (z-50): si se colara la cabecera por encima, el botón de
+   * volver quedaría debajo del logo.
+   */
+  .buscador-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    background: var(--fondo);
+  }
+
+  .buscador-panel-barra {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--borde);
+    /* El campo se come el espacio que dejen los botones de los extremos. */
+    & > input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  .buscador-panel-cuerpo {
+    flex: 1;
+    overflow-y: auto;
+    /* El arrastre no se propaga al catálogo de detrás cuando la lista llega a
+       su final: sin esto, seguir arrastrando mueve la página que hay debajo. */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /*
+   * Una fila del buscador: sugerencia, búsqueda reciente o «ver todo».
+   *
+   * 3,5 rem de alto no es estética: es el mínimo cómodo para acertar con el
+   * pulgar sin mirar. Una lista de resultados con filas de 32 px en un
+   * teléfono se falla una de cada tres veces, y fallar aquí significa abrir un
+   * producto que no era.
+   */
+  .buscador-fila {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 3.5rem;
+    padding: 0.625rem 1rem;
+    text-align: left;
+    transition: background 0.15s;
+  }
+  .buscador-fila:hover,
+  .buscador-fila:focus-visible {
+    background: var(--fondo-sutil);
+  }
+
+  .buscador-seccion + .buscador-seccion {
+    border-top: 1px solid var(--borde);
+  }
+
+  .buscador-seccion-titulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1rem 0.5rem;
+
+    & h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--texto-tenue);
+    }
+  }
+
+  .buscador-categoria {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 3.5rem;
+    padding: 0.5rem;
+    text-align: left;
+    border: 1px solid var(--borde);
+    border-radius: var(--radius-card);
+    background: var(--fondo-elevado);
+    transition: border-color 0.15s;
+  }
+  .buscador-categoria:hover {
+    border-color: var(--marca-primario);
+  }
+
+  .buscador-categoria-foto {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: var(--fondo-sutil);
+  }
+
+  /*
+   * ── Filtros del catálogo ──
+   *
+   * El mismo árbol en las dos disposiciones. En el escritorio es una columna
+   * al lado del listado; por debajo de `lg` es una hoja que sube desde abajo,
+   * que es donde llega el pulgar. No ocupa toda la pantalla a propósito: dejar
+   * ver un trozo del catálogo por encima es lo que hace evidente que esto es
+   * una capa y que se cierra, sin tener que buscar la equis.
+   */
+  .filtros-fondo {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgb(0 0 0 / 0.45);
+  }
+
+  .filtros-cabecera,
+  .filtros-pie {
+    display: none;
+  }
+
+  @media (max-width: 1023px) {
+    .filtros-capa {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 61;
+      display: flex;
+      flex-direction: column;
+      /* `dvh` y no `vh`: con la barra del navegador contada de más, el botón
+         de «ver resultados» queda por debajo del borde de la pantalla. */
+      max-height: 85dvh;
+      background: var(--fondo-elevado);
+      border-top-left-radius: var(--radius-card);
+      border-top-right-radius: var(--radius-card);
+      box-shadow: var(--sombra-elevada);
+    }
+    .filtros-capa[data-abierto='false'] {
+      display: none;
+    }
+
+    .filtros-cabecera {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--borde);
+    }
+
+    .filtros-cuerpo {
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 1rem;
+    }
+
+    .filtros-pie {
+      display: block;
+      padding: 0.75rem 1rem;
+      border-top: 1px solid var(--borde);
+      /* Por encima del gesto de inicio del móvil, que se come el último cm. */
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    /* En el escritorio los filtros son la tarjeta de la columna izquierda. */
+    .filtros-contenido {
+      background: var(--fondo-elevado);
+      border: 1px solid var(--borde);
+      border-radius: var(--radius-card);
+      box-shadow: var(--sombra-card);
+      padding: 1rem;
+    }
+  }
+
+  /* Una categoría en los filtros: miniatura, nombre y cuántos hay. */
+  /*
+   * Los `fieldset` de la barra de filtros pueden encogerse.
+   *
+   * El navegador les pone `min-width: min-content` de fábrica, y eso no lo
+   * cambia ningún `w-full` ni ningún `min-w-0` de dentro: el `fieldset` se
+   * niega a bajar del ancho de su contenido. En la lista de categorías ese
+   * contenido lleva el nombre en una sola línea —`truncate` implica
+   * `white-space: nowrap`, así que el mínimo es el texto ENTERO— y el bloque
+   * se salía 22 px de la tarjeta: el número de productos quedaba flotando
+   * fuera, encima del listado. Las marcas se libraban de casualidad, por
+   * tener los nombres más cortos.
+   */
+  .filtros-contenido fieldset {
+    min-width: 0;
+  }
+
+  .filtro-categoria {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    text-align: left;
+    color: var(--texto-suave);
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .filtro-categoria:hover {
+    background: var(--fondo-sutil);
+    color: var(--texto);
+  }
+  .filtro-categoria.activa {
+    background: color-mix(in srgb, var(--marca-primario) 8%, transparent);
+    color: var(--texto);
+    font-weight: 500;
+  }
+
+  .filtro-categoria-foto {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    background: var(--fondo-sutil);
+  }
+
+  /*
+   * ── Títulos de sección de la ficha ──
+   *
+   * «Descripción», «Valoraciones» y «También te puede interesar» eran tres
+   * `h2` del mismo tamaño que el texto que llevaban debajo, sin nada que los
+   * separase. En una ficha larga —con la descripción del proveedor, que trae
+   * sus propios titulares dentro— no se distinguía dónde acababa una sección y
+   * empezaba la siguiente: se leía como un muro.
+   *
+   * La barra de color hace el trabajo con muy poco: marca el comienzo sin
+   * añadir una línea horizontal más a una página que ya tiene varias.
+   */
+  .titulo-ficha {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .titulo-ficha::before {
+    content: '';
+    display: block;
+    width: 0.25rem;
+    /* `1em` y no una altura fija: si algún día cambia el cuerpo del titular,
+       la barra lo sigue sola en lugar de quedarse corta o sobresalir. */
+    height: 1em;
+    flex: none;
+    border-radius: 9999px;
+    background: var(--marca-primario);
+  }
+
+  /*
+   * ── Garantías de compra ──
+   *
+   * Envío, devoluciones y pago seguro, bajo el botón de comprar. Tres líneas
+   * pequeñas y en gris a propósito: son para tranquilizar a quien duda, no
+   * para competir con el precio ni con el botón, que es lo que pasa cuando se
+   * les pone icono grande y color.
+   */
+  .garantias {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--borde);
+    font-size: 0.875rem;
+    color: var(--texto-suave);
+
+    & > li {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+  }
+
+  /* ── Etiquetas de estado ── */
+  .etiqueta {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* ── Esqueleto de carga ── */
+  .esqueleto {
+    background: linear-gradient(
+      90deg,
+      var(--fondo-sutil) 25%,
+      var(--borde) 50%,
+      var(--fondo-sutil) 75%
+    );
+    background-size: 200% 100%;
+    animation: brillo 1.4s ease-in-out infinite;
+  }
+
+  @keyframes brillo {
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  /*
+   * Galería de la ficha.
+   *
+   * Es un carrusel con anclaje: las fotos van en una tira horizontal que se
+   * arrastra con el dedo y se para en cada una. Lo hace el navegador, así que
+   * el gesto es nativo y no cuesta ni una línea de JavaScript por fotograma.
+   */
+  .galeria-carril {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    /* Sin barra a la vista: en escritorio, una barra bajo la foto del producto
+       se lee como un fallo de maquetación. El teclado y la rueda siguen yendo. */
+    scrollbar-width: none;
+    aspect-ratio: 1 / 1;
+    border-radius: inherit;
+  }
+  .galeria-carril::-webkit-scrollbar {
+    display: none;
+  }
+
+  .galeria-diapositiva {
+    position: relative;
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    /* `cursor: zoom-in` en vez de `pointer`: dice qué va a pasar al pulsar sin
+       tener que escribirlo en ningún sitio. */
+    cursor: zoom-in;
+  }
+
+  .galeria-caja {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radio, 0.75rem);
+  }
+
+  .galeria-rotulo {
+    position: absolute;
+    left: 0.5rem;
+    top: 0.5rem;
+    max-width: calc(100% - 1rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--fondo) 82%, transparent);
+    color: var(--texto);
+    pointer-events: none;
+  }
+
+  .galeria-lupa {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--fondo) 82%, transparent);
+    color: var(--texto-suave);
+    pointer-events: none;
+  }
+
+  .galeria-puntos {
+    display: flex;
+    justify-content: center;
+    gap: 0.375rem;
+    margin-top: 0.625rem;
+  }
+  .galeria-punto {
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: var(--borde);
+    transition: background 0.2s;
+  }
+  .galeria-punto-activo {
+    background: var(--marca-primario);
+  }
+
+  .galeria-tiras {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    margin-top: 0.75rem;
+    padding-bottom: 0.25rem;
+  }
+  .galeria-tira {
+    height: 4rem;
+    width: 4rem;
+    flex: none;
+  }
+
+  /*
+   * En el móvil, la foto va de borde a borde.
+   *
+   * Antes se ENCOGÍA a propósito —`max-width: min(100%, 38vh)`— porque con el
+   * cuadrado a todo ancho el nombre del producto empezaba en el píxel 647 y el
+   * precio en el 739, y en un teléfono de 667 de alto no se veía ninguno de los
+   * dos. Eso se arregla ahora por donde había que arreglarlo: las miniaturas
+   * bajo la foto ocupaban 50 px y se sustituyen por puntos de 6, que con los
+   * márgenes son unos 40 px menos. Con eso el precio vuelve a caber y la foto
+   * puede ocupar lo que tiene que ocupar, que es todo el ancho.
+   *
+   * Los márgenes negativos sacan la tira del acolchado de la página: una foto
+   * a sangre se lee como una app y no como una web estrecha.
+   */
+  @media (max-width: 639px) {
+    .galeria-caja {
+      /* 1rem es el `px-4` que `Pagina` aplica por debajo de 640 px. Si aquel
+         cambia, este tiene que cambiar con él o la foto se sale del carril. */
+      margin-inline: -1rem;
+      width: calc(100% + 2rem);
+      border-radius: 0;
+    }
+    /* Las miniaturas sobran donde hay puntos: son la mitad del problema. */
+    .galeria-tiras {
+      display: none;
+    }
+  }
+
+  /* Y al revés a partir de tableta: sobra sitio para las miniaturas, así que
+     los puntos no aportan nada. */
+  @media (min-width: 640px) {
+    .galeria-puntos {
+      display: none;
+    }
+  }
+
+  /*
+   * Visor a pantalla completa.
+   *
+   * `dvh` y no `vh`: en el móvil, `100vh` cuenta la barra del navegador como si
+   * no estuviera y la foto queda cortada por abajo justo donde va el pie.
+   */
+  .visor {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    /* Casi opaco: con el fondo traslúcido se leía la ficha por detrás de la
+       foto y el visor parecía un aviso encima de la página, no una pantalla. */
+    background: rgb(0 0 0 / 0.96);
+  }
+
+  .visor-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    /* Por encima del lienzo: si no, el clic de cerrar cae en el zoom. */
+    position: relative;
+    z-index: 2;
+  }
+  .visor-contador {
+    font-size: 0.875rem;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+  .visor-boton {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 9999px;
+    color: #fff;
+    background: rgb(255 255 255 / 0.12);
+  }
+
+  .visor-lienzo {
+    flex: 1;
+    overflow: auto;
+    display: grid;
+    place-items: center;
+    cursor: zoom-in;
+    /* Deja que el navegador haga el pellizco, que lo hace mejor que nosotros. */
+    touch-action: pinch-zoom pan-x pan-y;
+    overscroll-behavior: contain;
+  }
+  .visor-lienzo-ampliada {
+    cursor: zoom-out;
+  }
+
+  .visor-imagen {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    user-select: none;
+  }
+  .visor-imagen-ampliada {
+    max-width: none;
+    max-height: none;
+    width: 200%;
+  }
+
+  .visor-flecha {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 9999px;
+    color: #fff;
+    background: rgb(255 255 255 / 0.12);
+    z-index: 2;
+  }
+  .visor-flecha-izq {
+    left: 0.75rem;
+    rotate: 180deg;
+  }
+  .visor-flecha-der {
+    right: 0.75rem;
+  }
+
+  .visor-pie {
+    padding: 0.75rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: rgb(255 255 255 / 0.6);
+  }
+
+  /*
+   * Área de cliente: índice y contenido.
+   *
+   * Antes eran pestañas, y seis pestañas medían 477 px en una pantalla de 358:
+   * se envolvían en dos filas de botones diminutos. Ahora son dos vistas —el
+   * índice y la sección— en el móvil, y las dos a la vez en escritorio. Lo
+   * decide el CSS, así que el componente pinta el mismo árbol en los dos casos
+   * y no hay dos maquetaciones que mantener.
+   */
+  .cuenta-disposicion {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .cuenta-indice {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cuenta-fila {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    /* Alto de dedo: 56 px es el mínimo cómodo para tocar sin fallar. */
+    min-height: 3.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--borde);
+    background: var(--fondo-panel, var(--fondo));
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .cuenta-fila:hover {
+    border-color: var(--marca-primario);
+  }
+  .cuenta-fila[data-activa='true'] {
+    border-color: var(--marca-primario);
+    background: color-mix(in srgb, var(--marca-primario) 6%, transparent);
+  }
+
+  .cuenta-fila-icono {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: none;
+    border-radius: 9999px;
+    background: var(--fondo-sutil);
+    color: var(--texto-suave);
+  }
+
+  .cuenta-fila-ayuda {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--texto-tenue);
+    margin-top: 0.125rem;
+  }
+
+  .cuenta-fila-flecha {
+    flex: none;
+    color: var(--texto-tenue);
+  }
+
+  .cuenta-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--texto-suave);
+  }
+
+  /* La tarjeta de un pedido: enlace a pantalla completa, no un botón dentro. */
+  .cuenta-pedido {
+    display: block;
+    padding: 1rem;
+    transition: border-color 0.15s;
+  }
+  .cuenta-pedido:hover {
+    border-color: var(--marca-primario);
+  }
+
+  @media (max-width: 639px) {
+    /* Una vista o la otra: nunca las dos. */
+    .cuenta-indice[data-abierto='false'],
+    .cuenta-panel[data-abierto='false'] {
+      display: none;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .cuenta-disposicion {
+      grid-template-columns: 15rem minmax(0, 1fr);
+      align-items: start;
+      gap: 2rem;
+    }
+    /* En el escritorio el índice es una columna estrecha: la ayuda de cada
+       fila lo convertiría en un muro de texto, y la flecha no lleva a otra
+       pantalla porque el contenido ya está al lado. */
+    .cuenta-fila-ayuda,
+    .cuenta-fila-flecha {
+      display: none;
+    }
+    .cuenta-fila {
+      min-height: 0;
+      padding: 0.625rem 0.75rem;
+    }
+  }
+
+  /*
+   * Sub-barra de navegación.
+   *
+   * Una sola fila que se arrastra en horizontal cuando no cabe. No envuelve a
+   * propósito: la cabecera es pegajosa y en el móvil ya ocupa dos filas, así que
+   * una tercera de altura variable se comería la pantalla del teléfono.
+   *
+   * La barra de desplazamiento se oculta porque en el escritorio los enlaces
+   * caben —no habría nada que desplazar— y dejaría una franja gris permanente
+   * bajo la navegación de toda la tienda. En el móvil el arrastre táctil no
+   * necesita barra, y el propio recorte de los enlaces indica que hay más.
+   */
+  .barra-menu {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    overflow-x: auto;
+    /* `min-width: 0` en el contenedor y en los hijos: sin esto, una fila de
+       enlaces largos estira la cabecera y desplaza la página entera de lado. */
+    min-width: 0;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .barra-menu::-webkit-scrollbar {
+    display: none;
+  }
+  .barra-menu > li {
+    flex: none;
+  }
+
+  .enlace-menu {
+    display: block;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    color: var(--texto-suave);
+    border-bottom: 2px solid transparent;
+    transition:
+      color 150ms ease,
+      border-color 150ms ease;
+  }
+  .enlace-menu:hover {
+    color: var(--texto);
+    border-bottom-color: var(--borde-fuerte);
+  }
+  /* «Ofertas», «Novedades»: lo que se quiere que se mire primero. */
+  .enlace-menu.destacado {
+    font-weight: 600;
+    color: var(--marca-texto);
+  }
+  .enlace-menu.destacado:hover {
+    border-bottom-color: var(--marca-primario);
+  }
+}
+
+@layer utilities {
+  /* Recorta el texto a N líneas: imprescindible en las tarjetas de producto,
+     donde los títulos del proveedor vienen kilométricos. */
+  .lineas-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .lineas-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /*
+   * Descripción de la ficha, tal y como la manda el proveedor.
+   *
+   * El HTML importado no trae estilos —el saneado del servidor quita los que
+   * venían—, así que sin esto sale todo pegado: párrafos sin separación, listas
+   * sin viñetas y tablas sin líneas. Estas reglas son las que convierten ese
+   * HTML pelado en algo legible.
+   *
+   * Las dos que no son cosmética:
+   *
+   *  · `img { max-width: 100% }` — las fotos del proveedor vienen a 1.200 px y
+   *    sin esto rompen el ancho de la página en el móvil.
+   *  · el envoltorio de las tablas con scroll propio: una tabla de medidas con
+   *    ocho columnas no cabe en un teléfono, y sin scroll propio empuja la
+   *    página entera a lo ancho.
+   */
+  .contenido-ficha {
+    color: var(--texto-suave);
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    overflow-wrap: break-word;
+  }
+  .contenido-ficha > * + * {
+    margin-top: 0.75rem;
+  }
+  .contenido-ficha h2,
+  .contenido-ficha h3,
+  .contenido-ficha h4 {
+    margin-top: 1.5rem;
+    color: var(--texto);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .contenido-ficha h2 {
+    font-size: 1.125rem;
+  }
+  .contenido-ficha h3 {
+    font-size: 1rem;
+  }
+  .contenido-ficha h4 {
+    font-size: 0.9375rem;
+  }
+  .contenido-ficha strong,
+  .contenido-ficha b {
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .contenido-ficha ul,
+  .contenido-ficha ol {
+    padding-left: 1.25rem;
+  }
+  .contenido-ficha ul {
+    list-style: disc;
+  }
+  .contenido-ficha ol {
+    list-style: decimal;
+  }
+  .contenido-ficha li + li {
+    margin-top: 0.25rem;
+  }
+  .contenido-ficha a {
+    color: var(--marca-primario, currentColor);
+    text-decoration: underline;
+  }
+  .contenido-ficha img {
+    max-width: 100%;
+    /* `width: auto` además del máximo: las imágenes del proveedor traen un
+       `width` fijo en el atributo, y sin esto lo respetan aunque no quepa. */
+    width: auto;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+  .contenido-ficha blockquote {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--borde, currentColor);
+    color: var(--texto-tenue);
+  }
+  .contenido-ficha hr {
+    border: 0;
+    border-top: 1px solid var(--borde, currentColor);
+  }
+  /* La tabla y su scroll. `display: block` en la tabla es lo que le permite
+     desbordar por su cuenta sin arrastrar la página. */
+  .contenido-ficha table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .contenido-ficha th,
+  .contenido-ficha td {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--borde, currentColor);
+    text-align: left;
+    vertical-align: top;
+  }
+  .contenido-ficha th {
+    color: var(--texto);
+    font-weight: 600;
+  }
+
+  /* Solo para lectores de pantalla. */
+  .solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+  /*
+   * La ficha de producto empieza más arriba en el móvil.
+   *
+   * El relleno vertical de `Pagina` son 40 px arriba, que en una pantalla de
+   * 667 px es el 6 % gastado en nada justo donde la foto ya ocupa 375. Aquí se
+   * recortan a 12: es lo que, con las migas escondidas, devuelve el precio a la
+   * primera pantalla teniendo la foto a todo el ancho.
+   *
+   * Va en la capa de utilidades y no en la de componentes a propósito: lo que
+   * hay que ganar es el `py-10` de Tailwind, que vive en esta capa, y entre
+   * capas manda el orden y no la especificidad. En `components` no se aplicaba
+   * ni doblando el selector.
+   */
+  @media (max-width: 639px) {
+    .ficha-producto {
+      padding-top: 0.75rem;
+    }
+  }
+}

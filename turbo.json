@@ -1,0 +1,42 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": [".env", "tsconfig.base.json"],
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:cobertura": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      // La de la API arranca contra Postgres y Redis; sin declararlas, turbo
+      // reutilizaría un resultado cacheado aunque se cambie de base de datos.
+      "env": ["DATABASE_URL", "DATABASE_URL_TEST", "REDIS_URL", "REDIS_URL_TEST"]
+    },
+    "generate": {
+      "cache": false
+    },
+    "e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["playwright-report/**"]
+    }
+  }
+}

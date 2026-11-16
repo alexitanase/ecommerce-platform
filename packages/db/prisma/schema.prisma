@@ -1,0 +1,3384 @@
+// ─────────────────────────────────────────────────────────────
+//  Esquema de datos · Plataforma de ecommerce dropshipping
+//
+//  Convenciones del proyecto:
+//   · IDs cuid2 generados en la aplicación (no autoincrementales)
+//   · Todo importe en céntimos como entero, nunca en coma flotante
+//   · createdAt / updatedAt en todas las tablas
+//   · Borrado lógico (deletedAt) en lo que nunca debe perderse
+//   · Texto traducible en tablas *Translation aparte, con clave (padre, locale)
+// ─────────────────────────────────────────────────────────────
+
+// Generador nuevo de Prisma 7: emite TypeScript ESM, así que el cliente se
+// compila con el resto del paquete en lugar de arrastrar un bundle CommonJS.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/client"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+// En Prisma 7 la URL ya no vive en el esquema: la conexión para migraciones
+// se configura en prisma.config.ts y el cliente recibe un driver adapter.
+datasource db {
+  provider = "postgresql"
+}
+
+// ═════════════════════════════════════════════════════════════
+//  IDENTIDAD Y ACCESO
+// ═════════════════════════════════════════════════════════════
+
+enum UserType {
+  CUSTOMER // cliente de la tienda
+  STAFF // miembro del equipo con acceso al admin
+}
+
+model User {
+  id       String   @id
+  email    String   @unique
+  type     UserType @default(CUSTOMER)
+  // Nulo cuando la cuenta se creó solo con login social
+  password String?
+
+  firstName String?
+  lastName  String?
+  phone     String?
+  locale    String  @default("es")
+
+  emailVerifiedAt DateTime?
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+
+  // Autenticación en dos pasos (obligatoria para el personal del admin)
+  totpSecret    String?
+  totpEnabledAt DateTime?
+  recoveryCodes String[]  @default([])
+
+  // Consentimiento de marketing, con registro de cuándo se dio (RGPD)
+  marketingConsentAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // Borrado lógico: un cliente con pedidos nunca se borra de verdad,
+  // se anonimiza para poder conservar la factura, que es obligación legal.
+  deletedAt DateTime?
+
+  roles        UserRole[]
+  sessions     Session[]
+  addresses    Address[]
+  identities   UserIdentity[]
+  tokens       VerificationToken[]
+  auditLogs    AuditLog[]
+  carts        Cart[]
+  wishlist     WishlistItem[]
+  /// Código de invitación propio; se genera la primera vez que se pide.
+  referralCode String?             @unique
+
+  referralsHechos    Referral[] @relation("ReferralsHechos")
+  referralsRecibidos Referral[] @relation("ReferralsRecibidos")
+
+  /// Artículos del blog firmados por esta persona.
+  posts Post[]
+
+  @@index([type, isActive])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// Login social vinculado a una cuenta (Google, Apple…)
+model UserIdentity {
+  id             String   @id
+  userId         String
+  provider       String // "google" | "apple"
+  providerUserId String
+  email          String?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("user_identities")
+}
+
+/// Sesión activa = un refresh token vivo. Permite cerrar sesión por dispositivo.
+model Session {
+  id         String    @id
+  userId     String
+  // Solo se guarda el hash del refresh token; el token en claro nunca toca la BD.
+  tokenHash  String    @unique
+  // El hash del token anterior y cuándo se rotó. Sirven para distinguir dos
+  // peticiones legítimas a la vez —dos pestañas abiertas, un reintento de red—
+  // de una reutilización de verdad. Ver TokensService.rotar.
+  prevHash   String?
+  rotatedAt  DateTime?
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+/// Token de un solo uso para verificar email o restablecer contraseña.
+model VerificationToken {
+  id        String       @id
+  userId    String
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  ROLES Y PERMISOS (RBAC)
+// ═════════════════════════════════════════════════════════════
+
+model Role {
+  id          String  @id
+  key         String  @unique // "owner", "admin", "orders", "support", "content"
+  name        String
+  description String?
+  // Los roles del sistema no se pueden borrar desde el admin
+  isSystem    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+/// Permiso granular con forma "recurso:acción" (products:write, orders:refund…)
+model Permission {
+  id          String  @id
+  key         String  @unique
+  resource    String
+  action      String
+  description String?
+
+  roles RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  DIRECCIONES
+// ═════════════════════════════════════════════════════════════
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+model Address {
+  id     String      @id
+  userId String?
+  type   AddressType @default(SHIPPING)
+
+  firstName   String
+  lastName    String
+  company     String?
+  // Identificación fiscal, necesaria para facturar a empresas
+  taxId       String?
+  line1       String
+  line2       String?
+  city        String
+  province    String
+  postalCode  String
+  countryCode String  @default("ES")
+  phone       String?
+
+  isDefault Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type])
+  @@map("addresses")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  AUDITORÍA
+// ═════════════════════════════════════════════════════════════
+
+/// Quién hizo qué, cuándo y con qué valores. Se escribe en toda acción
+/// sensible del admin y no se puede modificar desde la aplicación.
+model AuditLog {
+  id         String  @id
+  actorId    String?
+  actorIp    String?
+  // "order.refund", "product.update", "brand.update"…
+  action     String
+  resource   String
+  resourceId String?
+  // Valores antes y después del cambio, para poder reconstruir qué pasó
+  before     Json?
+  after      Json?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([resource, resourceId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  EVENTOS DE DOMINIO (patrón outbox)
+// ═════════════════════════════════════════════════════════════
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+/// El evento se escribe en la MISMA transacción que el cambio de datos, y un
+/// worker lo publica después a la cola. Así es imposible que un pedido quede
+/// pagado sin que se dispare su procesamiento, ni al revés.
+model OutboxEvent {
+  id            String       @id
+  eventType     String // "order.paid", "product.stock_changed"…
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  lastError     String?
+  availableAt   DateTime     @default(now())
+  publishedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+  @@map("outbox_events")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN Y MARCA
+// ═════════════════════════════════════════════════════════════
+
+/// Ajustes de la plataforma en clave/valor con espacio de nombres.
+/// Permite cambiar marca, idiomas o umbrales desde el admin sin desplegar.
+model Setting {
+  id        String   @id
+  namespace String // "brand", "shop", "checkout", "legal"
+  key       String
+  value     Json
+  // Los ajustes públicos se sirven al storefront sin autenticación
+  isPublic  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@unique([namespace, key])
+  @@index([namespace, isPublic])
+  @@map("settings")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  TRABAJOS PROGRAMADOS E IDEMPOTENCIA
+// ═════════════════════════════════════════════════════════════
+
+/// Registro de claves de idempotencia ya usadas. Evita cobrar dos veces o
+/// enviar dos veces el mismo pedido al proveedor cuando se reintenta un job.
+model IdempotencyRecord {
+  key       String   @id
+  scope     String
+  result    Json?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([scope])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CATÁLOGO
+// ═════════════════════════════════════════════════════════════
+
+enum ProductStatus {
+  DRAFT // en preparación, no visible en la tienda
+  ACTIVE // publicado
+  ARCHIVED // retirado, pero conservado por los pedidos que lo referencian
+}
+
+model Product {
+  id     String        @id
+  status ProductStatus @default(DRAFT)
+
+  /// Identificador estable e independiente del idioma. El slug visible por
+  /// idioma vive en ProductTranslation, para poder tener /es/zapatos y /en/shoes.
+  handle String @unique
+
+  categoryId String?
+  brandId    String?
+
+  /// Tipo de IVA aplicable en España (21 general, 10 reducido, 4 superreducido).
+  taxRate Decimal @default(21) @db.Decimal(5, 2)
+
+  /// Marca el producto como restringido a mayores de edad. Los productos
+  /// marcados se excluyen del feed de Google, de la portada y del buscador
+  /// público mientras no se haya verificado la edad.
+  isAdult Boolean @default(false)
+
+  /// Excepción al derecho de desistimiento, si la hay.
+  ///
+  /// Solo se rellena cuando el producto encaja de verdad en una de las
+  /// excepciones legales. Marcarlo "por si acaso" para evitar devoluciones es
+  /// una infracción, no una política de tienda.
+  withdrawalExemption WithdrawalExemption?
+
+  /// Producto físico que requiere envío. Falso para descargables o servicios.
+  requiresShipping Boolean @default(true)
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  category          Category?                 @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand             Brand?                    @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  translations      ProductTranslation[]
+  variants          ProductVariant[]
+  options           ProductOption[]
+  media             Media[]
+  attributes        ProductAttribute[]
+  collections       CollectionProduct[]
+  reviews           Review[]
+  wishlisted        WishlistItem[]
+  translationDrafts ProductTranslationDraft[]
+
+  /// Artículos del blog que lo mencionan.
+  posts PostProduct[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId, status])
+  @@index([deletedAt])
+  @@map("products")
+}
+
+model ProductTranslation {
+  id        String @id
+  productId String
+  locale    String
+
+  name             String
+  /// Slug por idioma: permite URLs traducidas y buenas para SEO en cada mercado.
+  slug             String
+  shortDescription String?
+  description      String?
+  metaTitle        String?
+  metaDescription  String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locale])
+  @@unique([locale, slug])
+  @@index([locale])
+  @@map("product_translations")
+}
+
+/// Traducción automática pendiente de repasar.
+///
+/// Va en una tabla aparte y NO en `ProductTranslation` a propósito: así todo lo
+/// que hay en las traducciones publicadas es texto aprobado, y ninguna consulta
+/// de la tienda —ficha, listado, buscador, portada, correos— necesita acordarse
+/// de filtrar. La alternativa, una bandera "sin revisar" en la tabla buena,
+/// obliga a filtrar en veinte sitios y basta con olvidarse en uno para que una
+/// traducción automática mala acabe delante de un cliente.
+model ProductTranslationDraft {
+  id        String @id
+  productId String
+  locale    String
+
+  name             String
+  slug             String
+  shortDescription String?
+  description      String?
+
+  /// Qué motor la generó: "deepl", "libre"… Para saber a quién echarle la
+  /// culpa cuando una tanda entera salga mal.
+  engine String
+
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locale])
+  @@index([createdAt])
+  @@map("product_translation_drafts")
+}
+
+/// Opción de variante: "Color", "Talla"… Su nombre se traduce aparte.
+model ProductOption {
+  id        String @id
+  productId String
+  /// Clave estable e independiente del idioma: "color", "size".
+  key       String
+  position  Int    @default(0)
+
+  product      Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  values       ProductOptionValue[]
+  translations ProductOptionTranslation[]
+
+  @@unique([productId, key])
+  @@map("product_options")
+}
+
+model ProductOptionTranslation {
+  id       String @id
+  optionId String
+  locale   String
+  name     String
+
+  option ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, locale])
+  @@map("product_option_translations")
+}
+
+model ProductOptionValue {
+  id       String  @id
+  optionId String
+  /// Valor canónico ("rojo", "xl"); su etiqueta traducida va en el JSON `labels`.
+  value    String
+  labels   Json?
+  /// Código de color para pintar la muestra en la ficha, si aplica.
+  hexColor String?
+  position Int     @default(0)
+
+  option   ProductOption        @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  variants VariantOptionValue[]
+
+  @@unique([optionId, value])
+  @@map("product_option_values")
+}
+
+model ProductVariant {
+  id        String @id
+  productId String
+
+  /// Referencia interna, única en toda la tienda.
+  sku     String  @unique
+  barcode String?
+
+  /// Todos los importes en céntimos como entero: nunca coma flotante.
+  priceCents     Int
+  /// Precio tachado ("antes 39,99"), solo para mostrar.
+  compareAtCents Int?
+  /// Coste real en el proveedor, base del cálculo de margen.
+  costCents      Int?
+  currency       String @default("EUR")
+
+  /// Peso y medidas: necesarios para calcular el envío y para la aduana.
+  weightGrams Int?
+  lengthMm    Int?
+  widthMm     Int?
+  heightMm    Int?
+
+  /// Stock disponible para vender. Las reservas del carrito se descuentan aparte.
+  stock          Int     @default(0)
+  /// Umbral a partir del cual se avisa al equipo para reponer.
+  lowStockAlert  Int     @default(5)
+  /// Permite vender sin stock (encargo al proveedor bajo pedido).
+  allowBackorder Boolean @default(false)
+
+  position  Int       @default(0)
+  isDefault Boolean   @default(false)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  optionValues VariantOptionValue[]
+  media        Media[]
+  reservations StockReservation[]
+  movements    StockMovement[]
+  cartItems    CartItem[]
+  priceHistory PriceHistory[]
+
+  @@index([productId, isActive])
+  @@index([stock])
+  @@map("product_variants")
+}
+
+model VariantOptionValue {
+  variantId     String
+  optionValueId String
+
+  variant     ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionValue ProductOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionValueId])
+  @@map("variant_option_values")
+}
+
+/// Reserva temporal de stock mientras el carrito está vivo.
+/// Sin esto, dos clientes pueden comprar la última unidad a la vez y uno
+/// se queda esperando un paquete que nunca saldrá.
+model StockReservation {
+  id        String   @id
+  variantId String
+  cartId    String?
+  orderId   String?
+  quantity  Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@index([expiresAt])
+  @@index([cartId])
+  @@map("stock_reservations")
+}
+
+enum StockMovementReason {
+  PURCHASE // venta a un cliente
+  RETURN // devolución que vuelve a stock
+  SUPPLIER_SYNC // ajuste por sincronización con el proveedor
+  MANUAL // corrección manual desde el admin
+  CANCELLATION // pedido cancelado
+}
+
+/// Histórico de cada cambio de stock. Cuando el inventario no cuadra —y
+/// tarde o temprano no cuadra— esto es lo único que permite saber por qué.
+model StockMovement {
+  id         String              @id
+  variantId  String
+  delta      Int
+  stockAfter Int
+  reason     StockMovementReason
+  reference  String?
+  note       String?
+  actorId    String?
+  createdAt  DateTime            @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, createdAt])
+  @@map("stock_movements")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CATEGORÍAS, MARCAS Y COLECCIONES
+// ═════════════════════════════════════════════════════════════
+
+model Category {
+  id       String  @id
+  parentId String?
+  handle   String  @unique
+
+  /// Ruta materializada ("/raiz/hijo/nieto/"). Permite consultar toda la rama
+  /// de una categoría con un LIKE en lugar de una consulta recursiva.
+  path     String
+  depth    Int    @default(0)
+  position Int    @default(0)
+
+  /// La foto que sube el panel. Manda siempre sobre la automática.
+  imageUrl String?
+
+  /// Foto tomada de un producto de la rama, elegida sola.
+  ///
+  /// Existe para que la tienda pueda enseñar la categoría con imagen sin que
+  /// nadie suba una por cada una de ellas —son cientos— y sin consultar el
+  /// catálogo en cada visita: se calcula una vez, se guarda aquí y se sirve
+  /// como un campo más. Se renueva cada pocas semanas para que la portada de
+  /// la categoría no sea siempre el mismo producto.
+  coverUrl String?
+  /// Cuándo se calculó `coverUrl`. Es lo que decide a cuáles les toca turno.
+  coverAt  DateTime?
+
+  isActive Boolean @default(true)
+  isAdult  Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  parent       Category?             @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[]            @relation("CategoryTree")
+  supplierRefs SupplierCategory[]
+  translations CategoryTranslation[]
+  products     Product[]
+  attributes   CategoryAttribute[]
+
+  @@index([parentId, position])
+  @@index([path])
+  /// El repaso periódico pide «las que llevan más tiempo sin refrescar»: sin
+  /// índice es un recorrido de la tabla entera cada día.
+  @@index([coverAt])
+  @@map("categories")
+}
+
+model CategoryTranslation {
+  id         String @id
+  categoryId String
+  locale     String
+
+  name            String
+  slug            String
+  description     String?
+  metaTitle       String?
+  metaDescription String?
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+  @@unique([locale, slug])
+  @@map("category_translations")
+}
+
+model Brand {
+  id        String   @id
+  handle    String   @unique
+  name      String
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@map("brands")
+}
+
+enum CollectionType {
+  MANUAL // los productos se añaden a mano
+  AUTOMATIC // se incluyen los que cumplen unas reglas
+}
+
+model Collection {
+  id       String         @id
+  handle   String         @unique
+  type     CollectionType @default(MANUAL)
+  /// Reglas de inclusión cuando es automática (categoría, precio, atributo…).
+  rules    Json?
+  imageUrl String?
+  isActive Boolean        @default(true)
+  position Int            @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  translations CollectionTranslation[]
+  products     CollectionProduct[]
+
+  @@map("collections")
+}
+
+model CollectionTranslation {
+  id           String @id
+  collectionId String
+  locale       String
+
+  name            String
+  slug            String
+  description     String?
+  metaTitle       String?
+  metaDescription String?
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, locale])
+  @@unique([locale, slug])
+  @@map("collection_translations")
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  position     Int    @default(0)
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+  @@map("collection_products")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  ATRIBUTOS Y FILTROS
+// ═════════════════════════════════════════════════════════════
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SELECT
+  MULTISELECT
+}
+
+/// Atributo filtrable ("material", "resistencia al agua"…). Se define una vez
+/// y se asocia a las categorías donde tiene sentido filtrar por él.
+model Attribute {
+  id           String        @id
+  key          String        @unique
+  type         AttributeType @default(TEXT)
+  unit         String?
+  /// Aparece como faceta en el listado de la tienda.
+  isFilterable Boolean       @default(true)
+  /// Se muestra en la tabla de características de la ficha.
+  isVisible    Boolean       @default(true)
+  position     Int           @default(0)
+  /// Opciones disponibles y sus etiquetas por idioma, para SELECT/MULTISELECT.
+  options      Json?
+  labels       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categories CategoryAttribute[]
+  products   ProductAttribute[]
+
+  @@map("attributes")
+}
+
+model CategoryAttribute {
+  categoryId  String
+  attributeId String
+  isRequired  Boolean @default(false)
+  position    Int     @default(0)
+
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, attributeId])
+  @@map("category_attributes")
+}
+
+model ProductAttribute {
+  productId   String
+  attributeId String
+  /// Valor tipado según el tipo del atributo (texto, número, lista…).
+  value       Json
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@id([productId, attributeId])
+  @@index([attributeId])
+  @@map("product_attributes")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  MEDIOS
+// ═════════════════════════════════════════════════════════════
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+model Media {
+  id        String  @id
+  productId String?
+  variantId String?
+
+  kind       MediaKind @default(IMAGE)
+  /// Clave en el almacenamiento de objetos; la URL pública se compone al servir.
+  storageKey String
+  url        String
+  mimeType   String?
+  width      Int?
+  height     Int?
+  sizeBytes  Int?
+  /// Marcador de posición borroso para evitar el salto de layout al cargar.
+  blurhash   String?
+  /// Texto alternativo por idioma. Obligatorio para accesibilidad y SEO.
+  alt        Json?
+  position   Int       @default(0)
+
+  /// Origen del fichero, para saber qué imágenes vinieron del proveedor y
+  /// cuáles pasaron por el estudio de IA.
+  source          String    @default("upload")
+  originalMediaId String?
+  aiProcessed     Boolean   @default(false)
+  aiApprovedAt    DateTime?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  product Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position])
+  @@index([variantId])
+  @@map("media")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  RESEÑAS
+// ═════════════════════════════════════════════════════════════
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Review {
+  id        String  @id
+  productId String
+  userId    String?
+
+  rating             Int
+  title              String?
+  body               String?
+  /// Solo se marca cuando existe un pedido entregado de ese producto.
+  isVerifiedPurchase Boolean      @default(false)
+  status             ReviewStatus @default(PENDING)
+  locale             String       @default("es")
+
+  /// Respuesta pública del comercio.
+  reply     String?
+  repliedAt DateTime?
+
+  helpfulCount Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, status])
+  @@index([userId])
+  @@map("reviews")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  PROVEEDORES (DROPSHIPPING)
+// ═════════════════════════════════════════════════════════════
+
+model Supplier {
+  id   String @id
+  /// Clave del adaptador: "aliexpress", "bigbuy", "mock"…
+  key  String
+  name String
+
+  isActive Boolean @default(true)
+  /// Orden de preferencia cuando varios proveedores tienen el mismo producto.
+  priority Int     @default(0)
+
+  /// Credenciales cifradas con AES-256-GCM. Nunca se devuelven a la interfaz.
+  credentials      String?
+  credentialsSetAt DateTime?
+
+  /// Margen por defecto que aplica el motor de precios a sus productos.
+  defaultMarginPct Decimal @default(60) @db.Decimal(5, 2)
+  /// Margen por debajo del cual no se vende, aunque el redondeo lo baje.
+  minMarginPct     Decimal @default(25) @db.Decimal(5, 2)
+  /// Terminación del redondeo psicológico (99 → 12,99 €).
+  priceEnding      Int     @default(99)
+  /// Repercutir el coste de envío en el PVP en lugar de cobrarlo aparte.
+  includeShipping  Boolean @default(true)
+
+  /// Lo que el proveedor añade AL PAGAR y su API no dice, en % del coste.
+  ///
+  /// Existe por un pedido real que se vendió a pérdida. La ficha de AliExpress
+  /// cotizaba 13,99 € y al pagar el cargo fue de 16,89 €: la diferencia eran
+  /// «cargos de importación estimados» —el IVA de entrada en la UE, que ellos
+  /// recaudan— que no aparecen por ninguna parte de la API de producto. Con el
+  /// coste equivocado, el motor de precios calcula un margen que no existe.
+  ///
+  /// Es un porcentaje configurable y no un cálculo de impuestos porque cambia
+  /// por país de destino y por tipo de producto, y porque el número bueno sale
+  /// de conciliar pedidos reales, no de una tabla. Para AliExpress → España se
+  /// midió un 26 % sobre el subtotal.
+  purchaseSurchargePct Decimal @default(0) @db.Decimal(5, 2)
+
+  /// Cargo FIJO por categoría en importaciones de bajo valor, en céntimos.
+  ///
+  /// Es distinto del recargo porcentual y por eso va aparte: no escala con el
+  /// precio. Tres euros sobre un artículo de 60 € son un 5 %; sobre uno de 14 €
+  /// son un 21 %, y es justo en los baratos donde se vende a pérdida sin verlo.
+  ///
+  /// Al poner precio se cuenta ENTERO en cada artículo. Es el peor caso a
+  /// propósito: en dropshipping el pedido típico lleva una unidad, así que el
+  /// cargo cae completo sobre ella. Si el pedido lleva varias de la misma
+  /// categoría el cargo se reparte y el margen sale mejor de lo previsto, que es
+  /// el lado por el que conviene equivocarse.
+  importFeeCents Int @default(0)
+
+  /// Valor del envío por debajo del cual se aplica ese cargo, en céntimos.
+  ///
+  /// Por encima el envío entra por el régimen general —con aranceles y gestión
+  /// de aduanas, que son otra cosa y no se modelan aquí—.
+  importFeeThresholdCents Int @default(15000)
+
+  /// País desde el que sale la mercancía (ISO-3166 alfa-2).
+  ///
+  /// Decide el IVA, no el país del cliente: un envío desde China a Madrid es
+  /// una importación por mucho que quien compra sea español. Con el valor por
+  /// defecto ("ES") todo se trataría como venta interior, así que en un
+  /// proveedor de fuera de la UE hay que corregirlo o se facturará mal.
+  shipsFromCountry String @default("ES")
+
+  /// Portes que cobra el proveedor por PEDIDO, en céntimos.
+  ///
+  /// Distinto de los portes por artículo que ya modela `includeShipping`, y no
+  /// intercambiable con ellos. Dreamlove declara 18,66 € en la ficha de sus
+  /// 12.913 productos: es evidentemente el porte de un envío, no el de cada
+  /// cosa. Repercutirlo como coste de línea subiría todos los PVP en 18,66 €
+  /// y dejaría el catálogo fuera de mercado; ignorarlo del todo se come el
+  /// margen del pedido pequeño. Va aquí para poder contarlo una sola vez, al
+  /// comprar.
+  orderShippingCents Int @default(0)
+
+  /// Importe de pedido a partir del cual el proveedor no cobra portes.
+  ///
+  /// Cero significa que no hay umbral y siempre se pagan. Es el número que
+  /// decide si conviene agrupar pedidos del día en una sola compra.
+  freeShippingThresholdCents Int @default(0)
+
+  /// Cada cuánto se sincronizan precio y stock.
+  syncIntervalMinutes Int       @default(180)
+  lastSyncAt          DateTime?
+  lastSyncStatus      String?
+
+  /// Salud de la API, para el panel del admin.
+  healthStatus      String    @default("UNKNOWN")
+  healthCheckedAt   DateTime?
+  consecutiveErrors Int       @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  products     SupplierProduct[]
+  orders       SupplierOrder[]
+  syncRuns     SupplierSyncRun[]
+  catalogItems SupplierCatalogItem[]
+  catalogRuns  SupplierCatalogImport[]
+  categories   SupplierCategory[]
+  bulkImports  SupplierBulkImport[]
+
+  @@unique([key, name])
+  @@index([isActive, priority])
+  @@map("suppliers")
+}
+
+/// Una fila del catálogo que manda el proveedor, tal y como él la publica.
+///
+/// Existe para los proveedores que NO tienen API. Dreamlove manda un XML de
+/// 340 MB con sus 12.913 artículos y ahí se acaba la integración: no hay
+/// endpoint que consultar al buscar ni al sincronizar. Sin esta tabla, cada
+/// búsqueda del importador significaría releer el fichero entero.
+///
+/// No es lo mismo que `SupplierProduct` y las dos hacen falta: aquí está TODO
+/// lo que el proveedor vende —se haya importado o no—, mientras que allí solo
+/// están los enlaces de lo que ya vendemos nosotros. Esta tabla es el
+/// escaparate del proveedor; aquella, nuestro inventario.
+model SupplierCatalogItem {
+  id         String @id
+  supplierId String
+
+  /// Identificador en el sistema del proveedor.
+  externalId String
+  /// El código que se ve en su web y que teclea una persona: "D-196690".
+  code       String
+  /// Grupo de variantes: los colores de un mismo artículo lo comparten.
+  groupId    String?
+  /// Con qué se agrupa: su grupo si lo tiene, o él mismo.
+  ///
+  /// Es lo que la tienda ve como UN producto. Se guarda calculada porque es
+  /// por lo que se pagina y se importa, y un COALESCE en el WHERE no usa
+  /// índice: con 12.913 filas por proveedor, la diferencia se nota.
+  groupKey   String
+
+  title            String
+  /// Título de la familia sin el color ni la talla, para el producto agrupado.
+  groupTitle       String?
+  shortDescription String?
+  descriptionHtml  String?
+  /// La marca que declara el artículo, que suele ser una GAMA: "SATISFYER PLUGS".
+  brand            String?
+  /// El fabricante de verdad, raíz de su jerarquía de marca: "SATISFYER".
+  ///
+  /// Es la que se importa como marca del producto. La hoja no sirve: en el
+  /// catálogo de julio de 2026 hay 452 hojas frente a 203 raíces, y entre las
+  /// hojas aparecen gamas como "BODIES & MASTURBATORS", que no son ninguna
+  /// marca. Importar por hoja partiría a un fabricante en seis marcas distintas.
+  brandRoot        String?
+
+  /// Lo que nos cuesta, sin IVA ni portes.
+  costCents Int
+  /// El PVP que recomienda el proveedor, con IVA. Solo de referencia.
+  rrpCents  Int     @default(0)
+  /// Tipo de IVA del artículo: en este catálogo hay al 21, al 10 y al 4.
+  vatPct    Decimal @default(21) @db.Decimal(5, 2)
+  currency  String  @default("EUR")
+
+  stock     Int     @default(0)
+  available Boolean @default(false)
+
+  /// URLs en el servidor del proveedor, con la preferida primero.
+  imageUrls    Json
+  /// Ruta de la categoría principal: ["LOVETOYS", "Vibrators"].
+  categoryPath Json
+  /// Nombre en español de esa categoría: "Vibradores".
+  categoryName String?
+
+  eans        String[] @default([])
+  weightGrams Int?
+  /// Opciones de la variante ya legibles: { "Color": "GRANATE" }.
+  options     Json
+
+  minUnits Int @default(1)
+  maxUnits Int @default(1)
+
+  leadTimeMinDays Int?
+  leadTimeMaxDays Int?
+
+  supplierUrl String?
+  onSale      Boolean @default(false)
+  isNew       Boolean @default(false)
+  /// Liquidación: no se repone cuando se agota.
+  clearance   Boolean @default(false)
+
+  /// Título, marca, código y EAN juntos, en minúsculas y sin tildes.
+  ///
+  /// La búsqueda del importador va contra esta columna y no contra `title`
+  /// porque nadie teclea con tildes ni recuerda si el proveedor escribió
+  /// "SATISFYER" o "Satisfyer". Se calcula al guardar: normalizar en cada
+  /// consulta impediría usar el índice.
+  searchText String
+
+  /// Cuándo lo tocó el proveedor por última vez, según su propio campo.
+  supplierUpdatedAt DateTime?
+
+  /// En qué catálogo se vio por primera y por última vez.
+  ///
+  /// `lastSeenAt` es lo que permite detectar bajas: un artículo que no aparece
+  /// en el catálogo nuevo es uno que el proveedor ha retirado, y hay que
+  /// despublicar lo que hayamos importado de él antes de venderlo sin poder
+  /// servirlo.
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  /// Ya no viene en el catálogo del proveedor.
+  removed     Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, externalId])
+  @@index([supplierId, code])
+  @@index([supplierId, groupKey])
+  @@index([supplierId, removed, available])
+  @@index([supplierId, searchText])
+  @@map("supplier_catalog_items")
+}
+
+enum CatalogImportStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// Cada vez que se procesa un catálogo del proveedor.
+///
+/// Se guarda el recuento de altas, bajas y cambios porque es la única forma de
+/// responder a "¿por qué se despublicaron ayer treinta productos?" sin volver a
+/// leer un fichero que ya no existe.
+/// Una categoría tal como la nombra el proveedor, y a cuál nuestra corresponde.
+///
+/// Existe porque el catálogo trae su propio árbol —311 ramas en el de
+/// Dreamlove, con nombre en español en todos los niveles— y sin guardarlo no
+/// hay forma de crearlo de una vez ni de saber, al importar un artículo, en qué
+/// categoría nuestra va. Antes se elegía a mano producto a producto, así que en
+/// la práctica entraban sin categoría.
+///
+/// Se guarda aparte de la categoría nuestra a propósito: son dos cosas
+/// distintas y hay que poder renombrar la nuestra, moverla o fusionar dos ramas
+/// del proveedor en una sin perder el vínculo que hace la asignación.
+model SupplierCategory {
+  id         String @id
+  supplierId String
+
+  /// La ruta que manda el proveedor, tal cual: "LOVETOYS|Vibrators".
+  path  String
+  /// Su nombre en español: "Vibradores".
+  name  String
+  /// Cuántos escalones tiene la ruta. Se guarda para crear el árbol por niveles.
+  depth Int    @default(1)
+
+  /// Cuántos artículos del catálogo la tienen como categoría principal.
+  ///
+  /// No es lo mismo que los productos que vendemos: es lo que HAY disponible
+  /// para importar, y es lo que decide si esta rama merece la pena.
+  itemCount Int @default(0)
+
+  /// Nuestra categoría, cuando ya se ha creado. Null mientras no exista.
+  categoryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([supplierId, path])
+  @@index([categoryId])
+  @@map("supplier_categories")
+}
+
+model SupplierCatalogImport {
+  id         String              @id
+  supplierId String
+  status     CatalogImportStatus @default(RUNNING)
+
+  fileName      String
+  fileSizeBytes BigInt @default(0)
+
+  itemsRead       Int @default(0)
+  itemsCreated    Int @default(0)
+  itemsUpdated    Int @default(0)
+  /// Artículos que estaban en el catálogo anterior y ya no vienen.
+  itemsRemoved    Int @default(0)
+  /// Filas que no se pudieron interpretar; se anotan y se sigue.
+  itemsDiscarded  Int @default(0)
+  xmlErrors       Int @default(0)
+  priceChanges    Int @default(0)
+  stockChanges    Int @default(0)
+  /// De los que ya vendemos, cuántos enlaces se actualizaron.
+  linkedRefreshed Int @default(0)
+
+  errorDetail String?
+  /// Quién subió el fichero.
+  uploadedBy  String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, startedAt])
+  @@map("supplier_catalog_imports")
+}
+
+enum BulkImportStatus {
+  RUNNING
+  COMPLETED
+  /// Alguien pulsó «cancelar»: lo hecho hasta ese punto se queda hecho.
+  CANCELLED
+  FAILED
+}
+
+/// Cada pasada del botón que sube el catálogo entero del proveedor a la tienda.
+///
+/// No es lo mismo que `SupplierCatalogImport`, aunque se parezcan: aquella
+/// mete el fichero del proveedor en nuestra copia de su catálogo, y esta
+/// convierte esa copia en productos que se pueden vender. Se puede procesar el
+/// fichero cien veces sin que la tienda tenga un solo producto.
+///
+/// El estado vive en la base de datos y no en memoria del proceso por dos
+/// motivos, y los dos importan: la pasada completa son unos 950 productos con
+/// sus fotos —de media hora para arriba—, así que quien la lanzó va a recargar
+/// la página o cerrar el portátil mientras tanto; y si el proceso muere a
+/// mitad, esta fila es lo único que explica qué se llegó a crear.
+model SupplierBulkImport {
+  id         String           @id
+  supplierId String
+  status     BulkImportStatus @default(RUNNING)
+
+  /// Familias del catálogo que había que recorrer.
+  total     Int @default(0)
+  processed Int @default(0)
+
+  created Int @default(0)
+  updated Int @default(0)
+  /// Familias saltadas: sin artículos vendibles o sin datos suficientes.
+  skipped Int @default(0)
+  errors  Int @default(0)
+
+  imagesImported Int @default(0)
+  /// Variantes cuyo precio salió tal cual del PVP recomendado del proveedor.
+  pricedFromRrp  Int @default(0)
+  /// Variantes publicadas por debajo del margen mínimo configurado.
+  ///
+  /// El precio del proveedor manda igualmente: esto no cuenta correcciones,
+  /// cuenta artículos que hay que mirar. Un margen flojo se resuelve dejando
+  /// de vender ese artículo, no subiéndole el precio hasta sacarlo del mercado.
+  belowMinMargin Int @default(0)
+  /// Variantes sin PVPR publicado: precio calculado con el margen de siempre.
+  pricedByMargin Int @default(0)
+  /// Variantes que se han dejado como estaban porque no se pidió repreciar.
+  ///
+  /// Se cuenta para que se vea que el interruptor ha hecho caso: en una pasada
+  /// de una hora, «no toques los precios» sin ninguna cifra que lo confirme es
+  /// un botón en el que hay que creer.
+  pricesKept     Int @default(0)
+
+  /// Colores o tallas que el proveedor ha añadido a un producto que ya existía.
+  ///
+  /// No se crean solos: dar de alta una variante en un producto vivo implica
+  /// tocar sus opciones, y hacerlo a ciegas sobre novecientos productos puede
+  /// dejar fichas con un desplegable a medias. Se cuentan y se enseñan para
+  /// que alguien decida, que es mejor que ignorarlos sin decir nada.
+  newVariants Int @default(0)
+
+  /// Qué se está procesando ahora, para que la pantalla no enseñe solo un número.
+  currentLabel String?
+  /// Las primeras familias que fallaron, con el motivo. Sin esto, «14 errores»
+  /// no se puede investigar: el catálogo ya no dice cuáles fueron.
+  failures     Json?
+
+  errorDetail     String?
+  /// Petición de parada. Se mira entre familia y familia.
+  cancelRequested Boolean @default(false)
+  startedBy       String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, startedAt])
+  @@map("supplier_bulk_imports")
+}
+
+/// Enlace entre un producto nuestro y su origen en el proveedor.
+/// Un mismo producto puede tener varios proveedores: el motor elige el mejor
+/// por precio, stock y plazo en el momento de enviar el pedido.
+model SupplierProduct {
+  id         String  @id
+  supplierId String
+  productId  String
+  variantId  String?
+
+  externalProductId String
+  externalVariantId String?
+
+  /// Último coste conocido, en céntimos.
+  costCents     Int
+  shippingCents Int     @default(0)
+  currency      String  @default("EUR")
+  stock         Int     @default(0)
+  available     Boolean @default(true)
+
+  /// El proveedor lo ha retirado de su catálogo.
+  discontinued   Boolean   @default(false)
+  discontinuedAt DateTime?
+
+  /// Plazo de entrega estimado, para mostrarlo en la ficha.
+  leadTimeMinDays Int?
+  leadTimeMaxDays Int?
+
+  lastCheckedAt DateTime?
+  /// Datos propios del proveedor que no encajan en el modelo común.
+  metadata      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, externalProductId, externalVariantId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([supplierId, available])
+  @@index([discontinued])
+  @@map("supplier_products")
+}
+
+enum SyncRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+/// Registro de cada sincronización, para el panel de salud del proveedor.
+model SupplierSyncRun {
+  id         String        @id
+  supplierId String
+  type       String
+  status     SyncRunStatus @default(RUNNING)
+
+  itemsChecked      Int @default(0)
+  itemsUpdated      Int @default(0)
+  priceChanges      Int @default(0)
+  stockChanges      Int @default(0)
+  itemsDiscontinued Int @default(0)
+  errors            Int @default(0)
+
+  errorDetail String?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  durationMs  Int?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, startedAt])
+  @@map("supplier_sync_runs")
+}
+
+enum SupplierOrderStatus {
+  PENDING // aún no enviado al proveedor
+  PLACING // envío en curso
+  PLACED // aceptado por el proveedor
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  FAILED // requiere intervención humana
+}
+
+/// Sub-pedido enviado a un proveedor concreto.
+/// Un pedido del cliente con productos de dos proveedores genera dos de estos.
+model SupplierOrder {
+  id         String @id
+  supplierId String
+  /// Referencia al pedido del cliente (se enlazará en la Fase 6).
+  orderId    String
+
+  externalOrderId String?
+  status          SupplierOrderStatus @default(PENDING)
+
+  /// El estado tal y como lo llama el proveedor, sin traducir.
+  ///
+  /// Nuestro `status` solo tiene cuatro escalones y se queda en PLACED durante
+  /// días mientras el proveedor pasa por «esperando al vendedor», «preparando»
+  /// y «en control de riesgo». Sin guardar el suyo, el panel enseña un pedido
+  /// congelado y no hay forma de distinguir «va bien, tarda» de «está atascado»
+  /// sin entrar en la web del proveedor a mirarlo.
+  supplierStatus String?
+
+  /// Clave de idempotencia: impide que un reintento cree un segundo pedido.
+  idempotencyKey String @unique
+
+  costTotalCents Int    @default(0)
+  currency       String @default("EUR")
+
+  /// Datos del envío tal y como se mandaron, congelados para la trazabilidad.
+  shippingSnapshot Json
+  linesSnapshot    Json
+
+  trackingCarrier String?
+  trackingNumber  String?
+  trackingUrl     String?
+  trackingStatus  String?
+  trackingEvents  Json?
+
+  attempts      Int       @default(0)
+  lastError     String?
+  lastErrorType String?
+  /// Requiere que una persona lo revise antes de continuar.
+  needsReview   Boolean   @default(false)
+  reviewedAt    DateTime?
+  reviewedBy    String?
+
+  placedAt    DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([status, needsReview])
+  @@index([supplierId, status])
+  @@map("supplier_orders")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  PEDIDOS
+// ═════════════════════════════════════════════════════════════
+
+enum OrderStatus {
+  DRAFT // carrito convertido, aún sin confirmar
+  AWAITING_PAYMENT // esperando que el cliente pague
+  PAYMENT_CONFIRMING // pagado, esperando confirmación en red (cripto)
+  PAID // pago confirmado; a partir de aquí se puede pedir al proveedor
+  PREPARING // enviándose a los proveedores
+  SENT_TO_SUPPLIER // todos los sub-pedidos aceptados
+  IN_TRANSIT
+  DELIVERED
+  PENDING_CLOSE // entregado, esperando que el equipo lo cierre en el Kanban
+  CLOSED // archivado: sale del tablero
+  CANCELLED
+  REFUNDED
+  FAILED // requiere intervención humana
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_CONFIRMATION // transacción vista, sin confirmaciones suficientes
+  PARTIALLY_PAID // ha llegado menos de lo esperado (habitual en cripto)
+  PAID
+  OVERPAID
+  EXPIRED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id     String @id
+  /// Número visible para el cliente: ES-2026-000123
+  number String @unique
+
+  /// Clave de consulta pública del pedido, para quien compra sin cuenta.
+  ///
+  /// No se usa `number` para esto: es correlativo y por tanto adivinable, así
+  /// que cualquiera podría recorrer ES-2026-000001, 000002… y leer la
+  /// dirección y el teléfono de todos los clientes. Este token es aleatorio y
+  /// solo viaja en el correo de confirmación.
+  publicToken String @unique
+
+  userId String?
+  /// Email de contacto; se guarda aparte porque se admite compra sin cuenta.
+  email  String
+  phone  String?
+  locale String  @default("es")
+
+  /// Identificador anónimo del navegador, si venía.
+  ///
+  /// Solo sirve para atribuir la venta a la variante de la prueba A/B que esa
+  /// persona vio. No identifica a nadie ni se cruza con la cuenta.
+  visitorId String?
+
+  // ── Atribución de canal ──
+  /// De dónde vino quien compró: 'newsletter', 'reddit', 'afiliados'…
+  ///
+  /// Con Google Ads y Meta Ads cerrados para catálogo adulto, saber qué canal
+  /// trae las ventas es lo único que evita repartir el esfuerzo por intuición.
+  /// Último clic no directo: se queda el último canal que la trajo de vuelta.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  /// Qué pieza concreta trajo el clic. Lo pone el Studio en cada creatividad,
+  /// y es lo que separa «ExoClick trajo doce ventas» de «las trajo el banner
+  /// vertical con el titular en rojo». Sin esto, probar creatividades es tirar
+  /// los dados.
+  utmContent  String?
+
+  status        OrderStatus   @default(DRAFT)
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // ── Importes, todos en céntimos ──
+  /// Suma de las líneas antes de descuentos, con impuestos incluidos.
+  subtotalCents     Int @default(0)
+  discountCents     Int @default(0)
+  shippingCents     Int @default(0)
+  /// Cuota de IVA contenida en el total.
+  taxCents          Int @default(0)
+  totalCents        Int @default(0)
+  /// Lo que nos cuesta a nosotros: base del cálculo de margen real.
+  supplierCostCents Int @default(0)
+  /// Comisión de la pasarela, para conocer el beneficio neto.
+  gatewayFeeCents   Int @default(0)
+
+  currency     String  @default("EUR")
+  /// Tipo de IVA predominante por importe. Con varios tipos en el mismo pedido
+  /// no existe "el tipo del pedido": este campo sirve para listados, y el dato
+  /// bueno es `taxBreakdown`.
+  taxRate      Decimal @default(21) @db.Decimal(5, 2)
+  /// Desglose por tipo: [{ tipo, baseCents, cuotaCents, totalCents }].
+  /// Obligatorio en factura cuando el pedido mezcla tipos (un libro al 4 % y
+  /// unas botas al 21 %), y es lo que tiene que cuadrar con el modelo 303.
+  taxBreakdown Json?
+
+  /// Régimen de IVA aplicado: INTERIOR, NACIONAL_POR_UMBRAL, OSS, IOSS,
+  /// IMPORTACION_SIN_IOSS, EXENTA o MIXTO.
+  ///
+  /// Sin este dato no se puede separar lo que va al modelo 303 de lo que va al
+  /// 369: son dos declaraciones distintas y el pedido no se puede reclasificar
+  /// después, porque el umbral que decidió el régimen ya habrá cambiado.
+  taxRegime String @default("INTERIOR")
+
+  /// País que recauda el IVA (ISO-2); vacío en un pedido con régimen mixto.
+  taxCountry String @default("ES")
+
+  /// Avisos legales que se mostraron antes de pagar (aduanas, exención).
+  /// Se guardan por si el cliente rechaza el paquete y discute que no se le dijo.
+  taxNotices Json?
+
+  /// Cuánto de este pedido cuenta para el umbral de 10.000 € de ventas a
+  /// distancia intracomunitarias.
+  ///
+  /// Se guarda en vez de deducirlo después de la dirección porque un pedido
+  /// puede ser mitad venta a Francia y mitad importación desde China: solo la
+  /// primera mitad consume umbral, y desde fuera no hay forma de separarlas.
+  taxThresholdCents Int @default(0)
+
+  /// El tipo aplicado en destino necesita confirmación humana.
+  ///
+  /// Pasa cuando un producto con tipo reducido en España se vende con IVA de
+  /// destino: cada país decide qué lleva reducido y no hay dos listas iguales.
+  taxNeedsReview Boolean @default(false)
+
+  /// Puntuación del motor de riesgo en el momento de crear el pedido.
+  ///
+  /// Se congela: se calcula con el historial de ese instante y recalcularla
+  /// después daría otro número, así que dejaría de explicar por qué se retuvo.
+  riskScore     Int       @default(0)
+  /// ACEPTAR · REVISAR · RECHAZAR. Un pedido en REVISAR se cobra pero NO se
+  /// envía al proveedor hasta que alguien lo suelta: es lo que evita gastar
+  /// dinero real en mercancía de un pedido que acabará en contracargo.
+  riskDecision  String    @default("ACEPTAR")
+  /// Qué disparó la puntuación, para que quien revisa sepa qué está mirando.
+  riskReasons   Json?
+  /// Quién lo soltó y cuándo, si estuvo retenido.
+  riskClearedAt DateTime?
+  riskClearedBy String?
+
+  /// Cuándo se bloquearon los datos personales por una solicitud de supresión.
+  ///
+  /// "Bloqueo" es el término del art. 32 de la LOPDGDD: el pedido se conserva
+  /// porque la ley obliga (respalda una factura), pero queda a disposición
+  /// exclusiva de jueces y administraciones. Ninguna consulta comercial —avisos,
+  /// marketing, recomendaciones— debe volver a tocarlo.
+  personalDataBlockedAt DateTime?
+
+  /// Dirección congelada en el momento del pedido: si el cliente edita su
+  /// libreta después, la factura ya emitida no puede cambiar.
+  shippingAddress Json
+  billingAddress  Json?
+
+  customerNote String?
+  internalNote String?
+
+  /// Cuándo se recordó al cliente que su pago se quedó a medias.
+  ///
+  /// En cripto el cobro caduca a los 20 minutos con el precio bloqueado; quien
+  /// se despista pierde la ventana y se queda con un pedido sin pagar y sin
+  /// saber qué hacer. Se guarda para no recordárselo dos veces.
+  paymentReminderAt DateTime?
+
+  /// Marca de agua del Kanban: quién y cuándo cerró el pedido.
+  closedAt DateTime?
+  closedBy String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  paidAt      DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items       OrderItem[]
+  payments    Payment[]
+  events      OrderEvent[]
+  withdrawals WithdrawalRequest[]
+  returns     ReturnRequest[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus])
+  @@index([email])
+  /// Para el informe trimestral de la ventanilla única.
+  @@index([taxRegime, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id
+  orderId String
+
+  productId String?
+  variantId String?
+
+  /// Datos del producto congelados: el catálogo cambia, la factura no.
+  sku         String
+  name        String
+  variantName String?
+  imageUrl    String?
+
+  quantity       Int
+  unitPriceCents Int
+  /// Coste del proveedor por unidad, para el margen real del pedido.
+  unitCostCents  Int     @default(0)
+  totalCents     Int
+  taxRate        Decimal @default(21) @db.Decimal(5, 2)
+
+  /// Cuántas unidades se han devuelto de esta línea.
+  refundedQuantity Int @default(0)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+/// Timeline del pedido: cada cambio de estado deja su huella aquí.
+/// Es lo que alimenta la vista de detalle y responde a "¿qué pasó con esto?".
+model OrderEvent {
+  id      String @id
+  orderId String
+
+  type        String
+  description String
+  /// Quién lo provocó: un usuario, un worker o el webhook de una pasarela.
+  actorType   String  @default("system")
+  actorId     String?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  PAGOS
+// ═════════════════════════════════════════════════════════════
+
+model Payment {
+  id      String @id
+  orderId String
+
+  /// "nowpayments" | "revolut" | "stripe" | "paypal"
+  provider   String
+  externalId String?
+
+  status PaymentStatus @default(PENDING)
+
+  /// Importe esperado, en la divisa del pedido (céntimos).
+  amountCents   Int
+  currency      String @default("EUR")
+  /// Importe realmente recibido: en cripto puede diferir del esperado.
+  receivedCents Int    @default(0)
+
+  // ── Específico de cripto ──
+  /// Moneda en la que paga el cliente: BTC, ETH, USDT…
+  payCurrency   String?
+  /// Importe en esa moneda, como texto para no perder precisión decimal.
+  payAmount     String?
+  payAddress    String?
+  /// Tipo de cambio aplicado, necesario para la factura y la contabilidad.
+  exchangeRate  String?
+  /// Momento en que se fijó el cambio; a partir de aquí corre la caducidad.
+  rateLockedAt  DateTime?
+  expiresAt     DateTime?
+  /// Hash de la transacción en la cadena, para poder auditarla.
+  txHash        String?
+  confirmations Int       @default(0)
+
+  /// Comisión cobrada por la pasarela.
+  feeCents Int @default(0)
+
+  /// Clave de idempotencia con la pasarela.
+  idempotencyKey String? @unique
+
+  failureReason String?
+  rawPayload    Json?
+
+  paidAt     DateTime?
+  expiredAt  DateTime?
+  refundedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([provider, externalId])
+  @@index([status, expiresAt])
+  @@map("payments")
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+  FAILED
+}
+
+model Refund {
+  id        String @id
+  paymentId String
+
+  amountCents Int
+  currency    String       @default("EUR")
+  reason      String
+  status      RefundStatus @default(REQUESTED)
+
+  // ── Reembolso en cripto ──
+  /// Dirección que facilita el cliente. Un error aquí son fondos perdidos:
+  /// por eso el flujo exige aprobación manual y doble confirmación.
+  payoutAddress  String?
+  payoutCurrency String?
+  payoutNetwork  String?
+  payoutTxHash   String?
+  externalId     String?
+
+  requestedBy   String?
+  approvedBy    String?
+  approvedAt    DateTime?
+  completedAt   DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+/// Conversión de cripto a euros (o pago hecho con cripto).
+///
+/// Existe porque la ganancia o pérdida de una conversión no aparece en ninguna
+/// factura ni en el modelo 303: sin registrar la salida no hay forma de
+/// calcularla, y es un dato que hay que declarar. Se anota a mano desde el
+/// panel a partir del justificante del exchange, porque la pasarela no nos
+/// informa de lo que la tienda hace después con sus fondos.
+model CryptoSettlement {
+  id String @id
+
+  /// Moneda convertida: BTC, ETH, USDTTRC20…
+  currency String
+  /// Cantidad convertida, como texto para no perder decimales.
+  amount   String
+
+  /// Euros realmente ingresados, ya descontada la comisión del exchange.
+  proceedsCents Int
+  /// Comisión del exchange, informativa: ya va descontada de `proceedsCents`.
+  feeCents      Int @default(0)
+
+  /// Dónde se hizo: el nombre del exchange o "pago a proveedor".
+  venue     String?
+  /// Referencia del justificante, para poder localizarlo en una comprobación.
+  reference String?
+  /// Hash de la transacción, si la hubo.
+  txHash    String?
+
+  settledAt DateTime
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@index([currency, settledAt])
+  @@map("crypto_settlements")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CONTENIDO
+// ═════════════════════════════════════════════════════════════
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Página de contenido: legales, informativas y libres.
+/// El contenido lo edita el admin sin necesidad de desplegar.
+model Page {
+  id     String     @id
+  handle String     @unique
+  status PageStatus @default(DRAFT)
+
+  /// Las páginas del sistema (aviso legal, privacidad…) no se pueden borrar:
+  /// una tienda sin ellas incumple la LSSI.
+  isSystem Boolean @default(false)
+  position Int     @default(0)
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  translations PageTranslation[]
+
+  @@index([status])
+  @@map("pages")
+}
+
+model PageTranslation {
+  id     String @id
+  pageId String
+  locale String
+
+  title           String
+  slug            String
+  content         String
+  metaTitle       String?
+  metaDescription String?
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, locale])
+  @@unique([locale, slug])
+  @@map("page_translations")
+}
+
+/// Invitación de un cliente a otra persona.
+///
+/// Se crea cuando alguien usa un código en su primer pedido y se completa
+/// cuando ese pedido se paga. Los dos momentos son distintos a propósito: un
+/// pedido creado y no pagado no puede repartir premios.
+model Referral {
+  id String @id
+
+  /// Quién recomienda.
+  referrerId String
+  /// Código usado, tal como se guardó.
+  code       String
+
+  /// A quién se recomendó. Se guarda el email porque quien llega puede
+  /// comprar como invitado y no tener cuenta.
+  referredEmail  String
+  referredUserId String?
+  /// Pedido que dispara el premio.
+  orderId        String? @unique
+
+  /// PENDIENTE mientras el pedido no está pagado; COMPLETADO al premiar;
+  /// RECHAZADO con el motivo, que es lo que se enseña en el panel.
+  status          String  @default("PENDIENTE")
+  /// Por qué se rechazó: AUTOREFERIDO, YA_ERA_CLIENTE, PEDIDO_INSUFICIENTE…
+  rejectionReason String?
+
+  /// Cupones emitidos, para poder auditar cuánto ha costado el programa.
+  referrerCouponId String?
+  referredCouponId String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  referrer User  @relation("ReferralsHechos", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User? @relation("ReferralsRecibidos", fields: [referredUserId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId, status])
+  @@index([referredEmail])
+  @@map("referrals")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  BLOG / CENTRO DE CONTENIDOS
+// ═════════════════════════════════════════════════════════════
+//
+// Para una tienda con catálogo +18 esto no es un extra: Google Ads y Meta Ads
+// bloquean estos productos, así que el contenido orgánico deja de ser un
+// complemento y pasa a ser el canal de captación principal.
+
+/// Categoría de artículos: "guías", "novedades", "comparativas"…
+model PostCategory {
+  id       String @id
+  handle   String @unique
+  /// Orden en el menú del blog.
+  position Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  translations PostCategoryTranslation[]
+  posts        Post[]
+
+  @@map("post_categories")
+}
+
+model PostCategoryTranslation {
+  id         String @id
+  categoryId String
+  locale     String
+
+  name String
+  slug String
+
+  category PostCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+  @@unique([locale, slug])
+  @@map("post_category_translations")
+}
+
+/// Artículo del blog.
+model Post {
+  id     String     @id
+  handle String     @unique
+  status PageStatus @default(DRAFT)
+
+  categoryId String?
+
+  /// Imagen de portada; es lo que se comparte en redes y lo que decide si se
+  /// hace clic desde un listado.
+  coverUrl String?
+
+  /// Cuándo se publicó. Ordena el listado y sale en los datos estructurados,
+  /// que es de donde Google saca la fecha del resultado de búsqueda.
+  publishedAt      DateTime?
+  /// Última revisión de fondo. Un artículo actualizado posiciona mejor que uno
+  /// viejo, pero solo si se declara: tocar una coma no cuenta.
+  updatedContentAt DateTime?
+
+  authorId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  category     PostCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author       User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  translations PostTranslation[]
+  productos    PostProduct[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@map("posts")
+}
+
+model PostTranslation {
+  id     String @id
+  postId String
+  locale String
+
+  title   String
+  slug    String
+  /// Resumen para el listado y para las redes. Sin él habría que recortar el
+  /// cuerpo, y un corte automático a mitad de frase se ve fatal al compartir.
+  excerpt String?
+  content String
+
+  metaTitle       String?
+  metaDescription String?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, locale])
+  @@unique([locale, slug])
+  @@map("post_translations")
+}
+
+/// Productos que menciona un artículo.
+///
+/// Es lo que convierte el contenido en ventas: una guía que no lleva a ninguna
+/// ficha atrae visitas y no vende nada.
+model PostProduct {
+  postId    String
+  productId String
+  position  Int    @default(0)
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([postId, productId])
+  @@map("post_products")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  FACTURACIÓN
+// ═════════════════════════════════════════════════════════════
+
+enum InvoiceType {
+  INVOICE // factura ordinaria
+  CREDIT_NOTE // rectificativa (abono)
+}
+
+/// Factura emitida.
+///
+/// La numeración es correlativa por serie y ejercicio, sin huecos: es
+/// obligación legal en España y lo primero que revisa una inspección. Por eso
+/// el número se asigna con una secuencia en base de datos y no se puede editar
+/// ni borrar la factura, solo emitir una rectificativa.
+model Invoice {
+  id         String      @id
+  type       InvoiceType @default(INVOICE)
+  /// Serie de facturación, p. ej. "ES2026".
+  series     String
+  /// Correlativo dentro de la serie.
+  number     Int
+  /// Número completo visible: "ES2026-000042".
+  fullNumber String      @unique
+
+  orderId           String
+  /// Rectificativa: apunta a la factura que corrige.
+  correctsInvoiceId String?
+
+  /// Datos del emisor congelados: si la empresa cambia de domicilio, las
+  /// facturas ya emitidas deben conservar el que tenían.
+  issuerSnapshot   Json
+  /// Datos fiscales del cliente en el momento de emitir.
+  customerSnapshot Json
+  /// Líneas congeladas con su base, IVA y total.
+  linesSnapshot    Json
+  /// Desglose por tipo de IVA: [{ tipo, baseCents, cuotaCents, totalCents }].
+  /// Obligatorio en la factura impresa cuando el pedido mezcla tipos.
+  taxBreakdown     Json?
+
+  subtotalCents Int
+  taxCents      Int
+  totalCents    Int
+  taxRate       Decimal @db.Decimal(5, 2)
+  currency      String  @default("EUR")
+
+  /// Si el cobro fue en cripto: importe, moneda y tipo de cambio aplicado.
+  /// La factura va SIEMPRE en euros; esto queda como referencia para el asesor.
+  cryptoAmount   String?
+  cryptoCurrency String?
+  exchangeRate   String?
+
+  /// PDF generado, guardado en almacenamiento privado.
+  pdfKey String?
+
+  issuedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([series, number, type])
+  @@index([orderId])
+  @@index([issuedAt])
+  @@map("invoices")
+}
+
+/// Contador por serie y ejercicio.
+/// Se actualiza dentro de la misma transacción que crea la factura, con
+/// bloqueo de fila: sin eso, dos pedidos simultáneos obtendrían el mismo número.
+model InvoiceCounter {
+  id     String @id
+  series String
+  year   Int
+  last   Int    @default(0)
+
+  @@unique([series, year])
+  @@map("invoice_counters")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  ENVÍOS
+// ═════════════════════════════════════════════════════════════
+
+/// Zona geográfica con sus propias tarifas de envío.
+///
+/// España obliga a separar más de lo que parece: Canarias, Ceuta y Melilla
+/// están FUERA del territorio de aplicación del IVA (tienen IGIC e IPSI), así
+/// que una venta allí no lleva IVA español y además pasa por aduana. Cobrar
+/// IVA a un cliente de Las Palmas es un error fiscal, y no advertirle de los
+/// trámites aduaneros acaba en paquete devuelto y disputa.
+model ShippingZone {
+  id   String @id
+  name String
+
+  /// Códigos ISO-3166-1 alfa-2 que cubre la zona.
+  countries String[]
+
+  /// Prefijos de código postal incluidos. Vacío = todo el país.
+  /// Canarias 35 y 38 · Ceuta 51 · Melilla 52 · Baleares 07.
+  postalPrefixes String[]
+
+  /// Prefijos excluidos. Es lo que permite definir "Península" como
+  /// "España menos Canarias, Ceuta, Melilla y Baleares".
+  excludedPostalPrefixes String[]
+
+  /// Fuera del territorio IVA: la venta va sin IVA español.
+  outsideVatTerritory Boolean @default(false)
+
+  /// Aviso al cliente antes de comprar (aduanas, plazos especiales).
+  customsWarning Boolean @default(false)
+
+  /// Gana la zona más específica cuando varias encajan.
+  priority Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  rates ShippingRate[]
+
+  @@index([isActive, priority])
+  @@map("shipping_zones")
+}
+
+/// Cómo se cobra el envío dentro de una zona.
+enum ShippingRateType {
+  /// Precio fijo, independientemente de peso e importe.
+  FLAT
+  /// Por tramos de peso.
+  WEIGHT
+  /// Por tramos de importe del pedido.
+  ORDER_VALUE
+}
+
+model ShippingRate {
+  id     String       @id
+  zoneId String
+  zone   ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  /// Lo que ve el cliente: "Estándar", "Urgente".
+  name    String
+  /// Descripción corta del plazo, traducible desde el admin.
+  carrier String?
+
+  type ShippingRateType @default(FLAT)
+
+  /// Precio del envío en céntimos, IVA incluido como todo en la plataforma.
+  priceCents Int @default(0)
+
+  /// Envío gratis a partir de este importe de pedido. null = nunca gratis.
+  /// El umbral se compara contra el subtotal SIN envío.
+  freeFromCents Int?
+
+  /// Tramo de peso en gramos (para type = WEIGHT).
+  minWeightGrams Int?
+  maxWeightGrams Int?
+
+  /// Tramo de importe en céntimos (para type = ORDER_VALUE).
+  minOrderCents Int?
+  maxOrderCents Int?
+
+  /// Plazo estimado, para mostrarlo en el checkout.
+  minDays Int @default(3)
+  maxDays Int @default(10)
+
+  /// Orden de presentación en el checkout.
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([zoneId, isActive, position])
+  @@map("shipping_rates")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CARRITO
+// ═════════════════════════════════════════════════════════════
+
+/// Carrito persistente, de invitado o de cliente registrado.
+///
+/// Vive en el servidor y no solo en el navegador por tres motivos: el cliente
+/// que añade productos en el móvil y remata en el ordenador espera encontrarlos;
+/// sin carrito guardado no se puede recuperar un carrito abandonado, que es de
+/// las pocas acciones de marketing que de verdad recupera ventas; y el precio
+/// hay que recalcularlo en el servidor de todas formas.
+///
+/// Nunca se guardan importes aquí: el precio se lee del catálogo en cada
+/// consulta. Un carrito de hace tres semanas con el precio viejo dentro sería
+/// una invitación a comprar al precio de entonces.
+model Cart {
+  id String @id
+
+  /// Nulo mientras es de invitado. Al iniciar sesión se fusiona con el suyo.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Identificador opaco que viaja en cookie para el invitado.
+  token String @unique
+
+  locale   String @default("es")
+  currency String @default("EUR")
+
+  /// Para recuperar carritos abandonados sin haber terminado el checkout.
+  email String?
+
+  /// Cupón aplicado, si lo hay. Se revalida al confirmar el pedido.
+  couponCode String?
+
+  /// Última vez que se tocó: base del aviso de carrito abandonado.
+  lastActivityAt DateTime @default(now())
+  /// Cuándo deja de tener sentido conservarlo.
+  expiresAt      DateTime
+
+  /// Se marca al convertirse en pedido, no se borra: hace falta para medir
+  /// la conversión y para no reenviar avisos de abandono de algo ya comprado.
+  convertedAt   DateTime?
+  convertedToId String?
+
+  /// Cuántos avisos de carrito abandonado se han enviado ya (0 a 3).
+  recoveryStage  Int       @default(0)
+  lastRecoveryAt DateTime?
+
+  /// El cliente pidió no recibir avisos de carrito abandonado.
+  ///
+  /// Se guarda en el propio carrito, y no solo en las preferencias de la
+  /// cuenta, porque la mayoría de quienes abandonan compran como invitados: no
+  /// hay cuenta donde apuntarlo, y el enlace de baja del correo tiene que
+  /// funcionar igual.
+  recoveryOptOut Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([lastActivityAt, convertedAt])
+  /// Para buscar rápido a quién toca escribir sin recorrer todos los carritos.
+  @@index([recoveryStage, lastActivityAt])
+  @@map("carts")
+}
+
+model CartItem {
+  id     String @id
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  quantity Int @default(1)
+
+  /// Precio en el momento de añadirlo, SOLO para avisar de que ha cambiado.
+  /// Nunca se cobra este importe: el bueno es el del catálogo al pagar.
+  priceWhenAddedCents Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Una variante no puede estar dos veces en el mismo carrito: se suma la
+  /// cantidad. Sin esto aparecerían dos líneas iguales y el cliente creería
+  /// que se ha duplicado el pedido.
+  @@unique([cartId, variantId])
+  @@index([variantId])
+  @@map("cart_items")
+}
+
+/// Registro de consentimiento de cookies.
+///
+/// El RGPD obliga a poder DEMOSTRAR que hubo consentimiento: quién, cuándo, a
+/// qué finalidades y sobre qué versión de la política. Con guardarlo solo en el
+/// navegador no hay nada que enseñar en una inspección, porque el usuario puede
+/// haberlo borrado y no queda rastro.
+///
+/// No se guarda la IP completa: identificar a alguien para demostrar que
+/// aceptó cookies es recoger más datos de los necesarios justo en el registro
+/// que sirve para acreditar que se respeta la privacidad.
+model ConsentLog {
+  id String @id
+
+  /// Identificador opaco del visitante, sin relación con su identidad.
+  visitorId String
+
+  /// Si estaba identificado, para poder atender una solicitud de acceso.
+  userId String?
+
+  analytics Boolean @default(false)
+  marketing Boolean @default(false)
+
+  /// Versión de la política de cookies que se le mostró.
+  policyVersion Int @default(1)
+
+  /// IP recortada (últimos octetos a cero): sirve para acreditar procedencia
+  /// sin guardar un dato que identifique a la persona.
+  ipTruncated String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([visitorId, createdAt])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("consent_logs")
+}
+
+/// Un servicio externo que la tienda usa: pasarela, correo, traductor, login.
+///
+/// Está en la base de datos y no en variables de entorno porque configurarlo es
+/// una decisión de negocio, no de despliegue: quien decide con qué pasarela se
+/// cobra es quien lleva la tienda, y no puede depender de que alguien edite un
+/// fichero en el servidor y reinicie.
+///
+/// Los secretos van cifrados con AES-256-GCM (`credentials`), igual que los de
+/// los proveedores. La clave de cifrado sigue viviendo en el entorno: si
+/// estuviera aquí, guardar los secretos cifrados no serviría de nada.
+///
+/// Lo que NO se guarda aquí: la conexión a la base de datos, Redis, el
+/// almacenamiento y los secretos de firma de sesión. Hacen falta para arrancar,
+/// así que no pueden depender de una tabla que solo se lee después de arrancar.
+model Integration {
+  id   String @id
+  /// Identificador estable del servicio: "nowpayments", "smtp", "deepl"…
+  key  String @unique
+  /// Familia a la que pertenece: "pago", "correo", "traduccion", "acceso".
+  kind String
+
+  /// La tienda quiere usarla. Sin esto no se carga ni se ofrece.
+  isActive Boolean @default(false)
+
+  /// Ajustes que no son secretos: modo de pruebas, URL del servicio, remitente…
+  settings Json?
+
+  /// Credenciales cifradas. Nunca se devuelven a la interfaz.
+  credentials      String?
+  credentialsSetAt DateTime?
+
+  /// Resultado de la última comprobación contra el servicio real.
+  lastCheckAt    DateTime?
+  lastCheckOk    Boolean?
+  lastCheckError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@index([kind, isActive])
+  @@map("integrations")
+}
+
+/// Producto guardado en la lista de deseos de un cliente.
+///
+/// Solo para quien tiene cuenta. El invitado la lleva en su navegador: sin
+/// cuenta no hay a quién asociarla, y crear un registro por visitante llenaría
+/// la tabla de listas que nadie volverá a mirar. Al iniciar sesión, la del
+/// navegador se funde con la de la cuenta.
+model WishlistItem {
+  id        String   @id
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+  @@map("wishlist_items")
+}
+
+/// Qué correos quiere recibir una dirección de email.
+///
+/// La clave es el **email**, no el usuario: la mayoría de quienes compran lo
+/// hacen como invitados, y colgar las preferencias de una cuenta dejaría sin
+/// forma de darse de baja justo a quien más correos recibe.
+///
+/// Los avisos de pedido no están aquí y no se pueden desactivar: son
+/// comunicaciones de servicio de un contrato en curso —confirmación, envío,
+/// entrega— y no marketing. Dejar de mandarlos sería incumplir, no respetar una
+/// preferencia.
+model CommunicationPreference {
+  id     String  @id
+  email  String  @unique
+  userId String?
+
+  /// Token del enlace "darse de baja" del pie de cada correo.
+  ///
+  /// Opaco y por dirección: con el email en la URL, cualquiera podría dar de
+  /// baja a otro con solo escribir su dirección.
+  unsubscribeToken String @unique
+
+  /// Recordatorio del carrito que se quedó a medias.
+  cartRecovery  Boolean @default(true)
+  /// Invitación a valorar lo comprado.
+  reviewInvites Boolean @default(true)
+  /// Ofertas y novedades: consentimiento expreso, así que por defecto NO.
+  offers        Boolean @default(false)
+  newsletter    Boolean @default(false)
+
+  /// Alta en la newsletter pendiente de confirmar (doble opt-in).
+  ///
+  /// Sin este paso, cualquiera puede apuntar a otra persona escribiendo su
+  /// dirección, y encima no habría forma de demostrar que el alta fue
+  /// voluntaria. El RGPD exige poder acreditar el consentimiento, y el clic en
+  /// el correo de confirmación es justo esa prueba.
+  newsletterPendingToken String?   @unique
+  newsletterPendingAt    DateTime?
+  /// Cuándo se confirmó. Es lo que se enseña si alguien reclama.
+  newsletterConfirmedAt  DateTime?
+  /// Desde qué red se confirmó, para poder acreditarlo.
+  ///
+  /// Truncada, igual que en el resto del módulo de consentimiento: para probar
+  /// que el alta fue voluntaria basta la red de origen, y guardar la dirección
+  /// completa sería recoger más datos de los necesarios.
+  newsletterConfirmedIp  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs CommunicationConsentLog[]
+
+  @@index([userId])
+  @@map("communication_preferences")
+}
+
+/// Cada cambio de preferencia, para poder demostrarlo.
+///
+/// El RGPD (art. 7.1) exige poder acreditar que el consentimiento se dio: no
+/// basta con guardar "sí". Hay que saber cuándo, desde dónde y a qué. Sin este
+/// registro, ante una reclamación la tienda no tiene nada que enseñar.
+model CommunicationConsentLog {
+  id           String  @id
+  preferenceId String
+  /// Canal afectado: "offers", "newsletter", "cartRecovery"…
+  channel      String
+  granted      Boolean
+  /// Desde dónde se cambió: "checkout", "email_link", "account", "admin".
+  source       String
+  /// IP recortada, igual que en el consentimiento de cookies.
+  ipTruncated  String?
+  userAgent    String?
+
+  createdAt DateTime @default(now())
+
+  preference CommunicationPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@index([preferenceId, createdAt])
+  @@map("communication_consent_logs")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  DESISTIMIENTO (derecho de devolución de 14 días)
+// ═════════════════════════════════════════════════════════════
+
+/// Motivo por el que un producto queda fuera del derecho de desistimiento.
+///
+/// Son las excepciones del art. 103 del texto refundido de la Ley General para
+/// la Defensa de los Consumidores y Usuarios. La lista es cerrada: si un
+/// producto no encaja en ninguna, el cliente PUEDE desistir, y negárselo es
+/// una infracción.
+enum WithdrawalExemption {
+  /// Precintado y no apto para devolución por higiene o salud, una vez
+  /// desprecintado. Aplica a productos íntimos, cosmética abierta y similares.
+  HYGIENE_UNSEALED
+  /// Hecho a medida o claramente personalizado.
+  CUSTOM_MADE
+  /// Se estropea rápido o caduca enseguida.
+  PERISHABLE
+  /// Grabaciones o software precintados, una vez abiertos.
+  SEALED_MEDIA
+  /// Se ha mezclado de forma inseparable con otros bienes.
+  MIXED_INSEPARABLE
+}
+
+enum WithdrawalStatus {
+  /// El cliente ha comunicado que desiste; el plazo se ha parado aquí.
+  REQUESTED
+  /// Aceptado: se le ha dado la dirección de devolución.
+  ACCEPTED
+  /// El paquete ha llegado y se ha revisado.
+  RECEIVED
+  /// Reembolsado. Aquí termina.
+  REFUNDED
+  /// Rechazado (fuera de plazo o producto exento). Hay que motivarlo.
+  REJECTED
+  /// El cliente lo retiró antes de enviarlo.
+  CANCELLED
+}
+
+/// Comunicación de desistimiento de un pedido.
+///
+/// La fecha de comunicación es el dato jurídicamente relevante: el plazo de 14
+/// días se cuenta hasta que el cliente COMUNICA que desiste, no hasta que
+/// devuelve el paquete. Y desde esa comunicación corren otros 14 días para
+/// reembolsarle, incluido el envío de ida.
+model WithdrawalRequest {
+  id      String @id
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status WithdrawalStatus @default(REQUESTED)
+
+  /// Cuándo lo comunicó el cliente. Detiene el cómputo del plazo.
+  requestedAt DateTime @default(now())
+  /// Fecha límite que tenía, guardada para no recalcularla con reglas futuras.
+  deadlineAt  DateTime
+
+  /// El cliente no está obligado a motivarlo; se pregunta para mejorar, no
+  /// para decidir. Negar una devolución por el motivo dado es ilegal.
+  reason       String?
+  customerNote String?
+
+  /// Motivo del rechazo, obligatorio si se rechaza.
+  rejectionReason String?
+
+  /// Importe a devolver, calculado al aceptar.
+  refundAmountCents   Int @default(0)
+  /// Envío de ida que se reembolsa. Solo la modalidad estándar: si el cliente
+  /// eligió envío urgente, la diferencia no hay que devolvérsela.
+  refundShippingCents Int @default(0)
+
+  receivedAt DateTime?
+  refundedAt DateTime?
+
+  /// Quién lo gestionó desde el admin.
+  handledBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items WithdrawalItem[]
+
+  @@index([orderId])
+  @@index([status, requestedAt])
+  @@map("withdrawal_requests")
+}
+
+/// Línea concreta que se devuelve. El desistimiento puede ser parcial.
+model WithdrawalItem {
+  id           String            @id
+  withdrawalId String
+  withdrawal   WithdrawalRequest @relation(fields: [withdrawalId], references: [id], onDelete: Cascade)
+
+  orderItemId String
+  quantity    Int    @default(1)
+
+  /// Importe de esta línea, congelado al comunicarse el desistimiento.
+  refundCents Int @default(0)
+
+  @@unique([withdrawalId, orderItemId])
+  @@map("withdrawal_items")
+}
+
+/// Histórico de precios de una variante.
+///
+/// Existe por una obligación concreta: desde la directiva Ómnibus (traspuesta
+/// por el Real Decreto-ley 24/2021), anunciar una reducción de precio obliga a
+/// indicar el **precio más bajo aplicado en los 30 días anteriores**. No vale
+/// el precio "de tarifa" ni uno inventado.
+///
+/// Sin este histórico no hay forma de calcular ese mínimo, y la tienda solo
+/// puede o no anunciar descuentos, o anunciarlos incumpliendo. Es la
+/// infracción más común del comercio electrónico español.
+model PriceHistory {
+  id        String         @id
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  /// Precio de venta al público en céntimos, IVA incluido.
+  priceCents Int
+
+  /// Qué provocó el cambio: útil para distinguir una bajada comercial de un
+  /// reajuste automático por subida de coste del proveedor.
+  source String @default("manual")
+
+  /// Desde cuándo rige este precio.
+  validFrom DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([variantId, validFrom])
+  @@map("price_history")
+}
+
+/// Verificación de edad para el acceso a categorías +18.
+///
+/// Vender productos para adultos sin comprobar la edad es una infracción, y la
+/// comprobación tiene que hacerse **en el servidor**: una ventana modal que el
+/// navegador puede cerrar desde las herramientas de desarrollo no verifica
+/// nada, solo tranquiliza a quien la programó.
+///
+/// Se guarda el año de nacimiento, no la fecha completa: basta para calcular
+/// la mayoría de edad y es un dato personal menos que custodiar.
+model AgeVerification {
+  id String @id
+
+  /// Identificador opaco del visitante, en cookie httpOnly.
+  visitorId String @unique
+
+  /// Si estaba identificado, para no volver a preguntárselo en otro dispositivo.
+  userId String?
+
+  /// Año de nacimiento declarado. Sin día ni mes: no hace falta.
+  birthYear Int
+
+  /// Cómo se comprobó. Hoy solo declaración; deja sitio a una verificación
+  /// documental si el catálogo lo exige más adelante.
+  method String @default("declaration")
+
+  /// Caduca para que un dispositivo compartido no quede verificado para siempre.
+  expiresAt DateTime
+
+  ipTruncated String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("age_verifications")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  DEVOLUCIONES Y RMA
+// ═════════════════════════════════════════════════════════════
+
+/// Por qué devuelve el cliente.
+///
+/// El motivo NO es una etiqueta informativa: determina el plazo, quién paga
+/// los portes de vuelta y qué puede exigir el cliente. Confundir una falta de
+/// conformidad con un desistimiento es el error más caro del postventa,
+/// porque recorta de tres años a catorce días un derecho que no se puede
+/// recortar.
+enum ReturnReason {
+  /// Producto defectuoso o que no funciona. Garantía legal: 3 años.
+  DEFECTIVE
+  /// No se corresponde con lo anunciado.
+  NOT_AS_DESCRIBED
+  /// Llegó dañado en el transporte.
+  DAMAGED_IN_TRANSIT
+  /// Nos equivocamos de artículo.
+  WRONG_ITEM
+  /// Falta algo del pedido.
+  MISSING_ITEM
+  /// Simplemente ya no lo quiere. 14 días, portes a su cargo.
+  WITHDRAWAL
+}
+
+/// Qué se hace con la devolución.
+enum ReturnResolution {
+  REPAIR
+  REPLACE
+  REFUND
+  /// Rebaja del precio conservando el producto.
+  PRICE_REDUCTION
+  /// Se rechaza. Exige motivo por escrito.
+  REJECTED
+}
+
+enum ReturnStatus {
+  REQUESTED
+  /// Aceptada: el cliente ya tiene instrucciones y etiqueta si procede.
+  APPROVED
+  /// El paquete va de vuelta.
+  IN_RETURN
+  /// Recibido y revisado.
+  RECEIVED
+  /// Resuelto (reembolsado, sustituido o reparado).
+  RESOLVED
+  REJECTED
+  CANCELLED
+}
+
+/// Solicitud de devolución.
+///
+/// Se numera con su propio correlativo (RMA-2026-000001) porque es el
+/// identificador que se le da al cliente y el que viaja en el paquete de
+/// vuelta: sin él, un bulto sin remite es imposible de asociar a nadie.
+model ReturnRequest {
+  id     String @id
+  number String @unique
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  reason     ReturnReason
+  status     ReturnStatus      @default(REQUESTED)
+  resolution ReturnResolution?
+
+  /// Lo que cuenta el cliente y las fotos que aporta. En una falta de
+  /// conformidad son la prueba y hay que conservarlas.
+  customerNote String?
+  photoUrls    String[] @default([])
+
+  /// Quién paga el envío de vuelta. Lo decide el motivo, no una negociación.
+  returnShippingPaidBy String @default("customer")
+
+  /// Importe a devolver, si la resolución es reembolso.
+  refundAmountCents Int @default(0)
+
+  /// Motivo del rechazo. Obligatorio si se rechaza.
+  rejectionReason String?
+
+  /// Reclamación abierta al proveedor, cuando el defecto es suyo.
+  supplierClaimRef String?
+
+  approvedAt DateTime?
+  receivedAt DateTime?
+  resolvedAt DateTime?
+
+  handledBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items ReturnItem[]
+
+  @@index([orderId])
+  @@index([status, createdAt])
+  @@map("return_requests")
+}
+
+model ReturnItem {
+  id       String        @id
+  returnId String
+  return   ReturnRequest @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  orderItemId String
+  quantity    Int    @default(1)
+
+  /// Estado en que llegó, anotado al recibirlo.
+  condition String?
+
+  /// Vuelve a stock o no. Un producto defectuoso NO vuelve: revenderlo
+  /// sabiendo que falla es vender un producto no conforme a sabiendas.
+  restocked Boolean @default(false)
+
+  refundCents Int @default(0)
+
+  @@unique([returnId, orderItemId])
+  @@map("return_items")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CUPONES Y PROMOCIONES
+// ═════════════════════════════════════════════════════════════
+
+enum CouponType {
+  /// Porcentaje sobre el subtotal.
+  PERCENTAGE
+  /// Importe fijo en céntimos.
+  FIXED
+  /// Envío gratis, sin tocar el precio de los productos.
+  FREE_SHIPPING
+}
+
+/// Cupón de descuento.
+///
+/// Los límites de uso son lo que separa una promoción de una fuga de dinero:
+/// un cupón sin tope que acaba en un foro de descuentos se usa miles de veces
+/// en una noche, y cada uso es margen que se va.
+model Coupon {
+  id   String     @id
+  code String     @unique
+  type CouponType @default(PERCENTAGE)
+
+  /// Porcentaje (1-100) o céntimos, según el tipo.
+  value Int @default(0)
+
+  /// Tope de descuento en un cupón de porcentaje. Sin él, un 50% sobre un
+  /// pedido de 2.000 € regala 1.000 €.
+  maxDiscountCents Int?
+
+  /// Compra mínima para poder aplicarlo.
+  minOrderCents Int @default(0)
+
+  /// Veces que se puede usar en total. null = sin límite.
+  maxUses            Int?
+  /// Veces por cliente. Evita que una persona lo use en bucle.
+  maxUsesPerCustomer Int  @default(1)
+
+  /// Usos consumidos. Se incrementa de forma atómica al aplicarlo.
+  usedCount Int @default(0)
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  /// Restringido a estas categorías. Vacío = todo el catálogo.
+  categoryIds        String[] @default([])
+  /// Productos excluidos aunque estén en una categoría incluida.
+  excludedProductIds String[] @default([])
+
+  /// Se puede combinar con otras promociones automáticas.
+  stackable Boolean @default(false)
+
+  /// Descripción interna para el equipo; no la ve el cliente.
+  internalNote String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  redemptions CouponRedemption[]
+
+  @@index([code, isActive])
+  @@index([validUntil])
+  @@map("coupons")
+}
+
+/// Cada uso de un cupón.
+///
+/// Existe por dos motivos: hace cumplir el límite por cliente, y es lo único
+/// que permite saber después si una campaña salió a cuenta o solo regaló
+/// margen a quien iba a comprar igualmente.
+model CouponRedemption {
+  id       String @id
+  couponId String
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  orderId String
+  /// Nulo si compró como invitado; entonces el límite se aplica por email.
+  userId  String?
+  email   String
+
+  discountCents Int
+
+  createdAt DateTime @default(now())
+
+  /// Un pedido no puede canjear dos veces el mismo cupón.
+  @@unique([couponId, orderId])
+  @@index([couponId, userId])
+  @@index([couponId, email])
+  @@map("coupon_redemptions")
+}
+
+// ── Pruebas A/B ──────────────────────────────────────────────
+
+/// Un experimento: dos o más versiones de algo compitiendo.
+///
+/// Sirve para responder preguntas que nadie sabe contestar mirando: si el
+/// botón vende más diciendo "Comprar" o "Añadir al carrito", si conviene el
+/// envío gratis a partir de 40 € o de 60 €.
+model Experiment {
+  id String @id
+
+  /// Identificador que usa la tienda para preguntar por él: 'boton-comprar'.
+  key        String  @unique
+  name       String
+  /// Qué se espera que pase. Escribirlo antes de mirar los datos es lo que
+  /// evita encontrar a posteriori una explicación para cualquier resultado.
+  hypothesis String?
+
+  /// BORRADOR, ACTIVO, PARADO.
+  status String @default("BORRADOR")
+
+  /// [{ clave, peso, valor }]. El valor lo interpreta la tienda: un texto, un
+  /// importe en céntimos, el nombre de una disposición.
+  variants Json
+
+  startedAt DateTime?
+  endedAt   DateTime?
+  /// Variante que se dio por ganadora al terminar, si se dio alguna.
+  winner    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments ExperimentAssignment[]
+
+  @@index([status])
+  @@map("experiments")
+}
+
+/// A quién le tocó qué, y si acabó comprando.
+///
+/// La asignación se recalcula sola a partir del visitante —es determinista—
+/// pero se guarda igualmente porque es lo único que permite atribuir un pedido
+/// a la variante que esa persona vio. Sin esta fila, al cobrar no habría forma
+/// de saber cuál de las dos versiones se llevó la venta.
+model ExperimentAssignment {
+  id           String     @id
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  /// Identificador anónimo de quien navega. No es un dato personal: se genera
+  /// en el navegador y no se cruza con la cuenta.
+  visitorId String
+  variant   String
+
+  /// Cuándo compró, si compró.
+  convertedAt  DateTime?
+  orderId      String?
+  /// Lo que dejó el pedido. Una variante puede convertir más y vender menos.
+  revenueCents Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  /// Una persona cae en una sola variante de cada experimento.
+  @@unique([experimentId, visitorId])
+  @@index([experimentId, variant])
+  @@map("experiment_assignments")
+}
+
+// ── Afiliados ────────────────────────────────────────────────
+
+/// Quien recomienda la tienda a cambio de una comisión.
+///
+/// No es lo mismo que un referido: un referido es un cliente que trae a un
+/// amigo y cobra en cupón; un afiliado es un colaborador con audiencia propia
+/// que cobra en dinero. Con la publicidad convencional cerrada para catálogo
+/// adulto, es de los pocos canales que escalan — quien recomienda ya tiene la
+/// audiencia y asume él la restricción de plataforma.
+model Affiliate {
+  id String @id
+
+  name  String
+  email String @unique
+  /// Código que viaja en el enlace: /?utm_source=afiliados&aff=CODIGO
+  code  String @unique
+
+  /// Porcentaje sobre la base imponible de las líneas, sin IVA ni envío.
+  commissionPercent Decimal @default(10) @db.Decimal(5, 2)
+
+  /// ACTIVO, PAUSADO, BAJA.
+  status String @default("ACTIVO")
+
+  /// Lo que hay que saber para pagarle. Se rellena a mano y no se enseña
+  /// entero en los listados.
+  payoutNotes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  commissions AffiliateCommission[]
+
+  @@index([status])
+  @@map("affiliates")
+}
+
+/// Comisión devengada por un pedido concreto.
+///
+/// Una fila por pedido, con el índice único que lo garantiza: sin él, un
+/// webhook de pago repetido pagaría la comisión dos veces, y eso no da ningún
+/// error — se descubre al liquidar, cuando ya se ha transferido el dinero.
+model AffiliateCommission {
+  id          String    @id
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  orderId String @unique
+
+  /// Base imponible sobre la que se calculó, para poder revisarla después.
+  baseCents   Int
+  percent     Decimal @db.Decimal(5, 2)
+  amountCents Int
+
+  /// PENDIENTE mientras el pedido puede devolverse; APROBADA cuando ya no;
+  /// PAGADA al liquidar; ANULADA si el pedido se devolvió o se canceló.
+  status String @default("PENDIENTE")
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([affiliateId, status])
+  @@map("affiliate_commissions")
+}
+
+// ═════════════════════════════════════════════════════════════
+//  STUDIO · CAMPAÑAS Y CREATIVIDADES
+// ═════════════════════════════════════════════════════════════
+//
+// Con catálogo +18 la publicidad convencional está cerrada, así que la
+// captación se juega en redes que se alimentan de piezas gráficas con tamaños
+// fijos y pesos ridículos. El Studio las fabrica; estas tablas guardan lo que
+// se fabricó, con qué, quién lo aprobó y qué vendió. Ver STUDIO.md.
+//
+// En todas ellas, `createdById` es un identificador suelto y NO una relación a
+// `User` a propósito: una creatividad tiene que sobrevivir a que quien la hizo
+// deje el equipo, y una clave ajena obligaría a decidir qué pasa con ella al
+// borrar la cuenta.
+
+enum CampaignStatus {
+  BORRADOR
+  ACTIVA
+  PAUSADA
+  ARCHIVADA
+}
+
+/// Estados de una creatividad. `EN_REVISION` no es burocracia: ninguna pieza
+/// generada con IA se publica sin que alguien la haya mirado, que es la misma
+/// regla del estudio de imágenes de producto y por el mismo motivo.
+enum CreativeStatus {
+  BORRADOR
+  EN_REVISION
+  APROBADA
+  PUBLICADA
+  ARCHIVADA
+}
+
+enum RenderStatus {
+  PENDIENTE
+  PROCESANDO
+  LISTO
+  FALLIDO
+}
+
+enum StudioAssetKind {
+  IMAGEN
+  VIDEO
+  AUDIO
+  VECTOR
+}
+
+/// De dónde salió un activo. Sirve para dos cosas que no son opcionales: saber
+/// qué se puede usar comercialmente, y poder responder si alguien reclama.
+enum StudioAssetSource {
+  SUBIDA
+  IA
+  CATALOGO
+  PROVEEDOR
+}
+
+model Campaign {
+  id   String @id
+  name String
+  slug String @unique
+
+  /// venta | captacion | retargeting | marca
+  objective String         @default("venta")
+  /// Clave del catálogo de canales (`canales.ts`): organico, newsletter, exoclick…
+  channel   String
+  status    CampaignStatus @default(BORRADOR)
+
+  /// Qué se quiere conseguir y a quién. Lo lee el asistente de IA como contexto.
+  brief    String?
+  audience String?
+
+  /// Idiomas en los que sale la campaña.
+  locales    String[] @default(["es"])
+  /// A dónde va el tráfico. De aquí se construyen los enlaces marcados.
+  landingUrl String?
+
+  /// Presupuesto previsto. El gasto real vive en CampaignSpend.
+  budgetCents Int?
+
+  /// Marcaje por defecto de la campaña; cada creatividad añade su utm_content.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  creatives   Creative[]
+  spends      CampaignSpend[]
+  generations AiGeneration[]
+
+  @@index([status, startsAt])
+  @@index([channel])
+  @@map("campaigns")
+}
+
+model Creative {
+  id         String   @id
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  name   String
+  /// banner | social | short | nativo | push | correo | captacion
+  kind   String @default("banner")
+  /// Clave del catálogo de formatos: 'exoclick.display.300x250'. La mesa
+  /// principal del documento; el documento puede tener más.
+  format String
+  locale String @default("es")
+
+  status CreativeStatus @default(BORRADOR)
+
+  /// Variante A/B de la que cuelga, si es una hermana de prueba.
+  variantOfId String?
+  variantOf   Creative?  @relation("VarianteDe", fields: [variantOfId], references: [id], onDelete: SetNull)
+  variants    Creative[] @relation("VarianteDe")
+
+  /// Valor que viaja en utm_content. Es lo que permite que el informe de
+  /// canales diga qué banner concreto trajo la venta, y no solo qué red.
+  utmContent String @unique
+
+  /// Número de la versión vigente del documento. El contenido está en
+  /// CreativeVersion; aquí queda el puntero para no leer todo el historial.
+  currentVersion Int @default(0)
+
+  approvedById String?
+  approvedAt   DateTime?
+  publishedAt  DateTime?
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  versions    CreativeVersion[]
+  renders     CreativeRender[]
+  generations AiGeneration[]
+
+  @@index([campaignId, status])
+  @@index([format])
+  @@map("creatives")
+}
+
+/// Una versión del documento.
+///
+/// El documento pesa kilobytes y es la fuente de todo; los archivos exportados
+/// son derivados y caducan. Guardar el historial completo cuesta poco y es lo
+/// único que permite volver atrás cuando tres iteraciones seguidas con la IA
+/// dejan algo peor que lo que había.
+model CreativeVersion {
+  id         String   @id
+  creativeId String
+  creative   Creative @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+
+  version  Int
+  /// El documento completo, validado con `documentoSchema` de @ecom/shared.
+  document Json
+  /// Nombre del hito, cuando se guarda a propósito: "antes de probar en rojo".
+  label    String?
+
+  /// Quién la hizo: el identificador de la persona, o el modelo si fue la IA.
+  authorId    String?
+  authorModel String?
+  /// La instrucción que la generó, si vino de la IA.
+  prompt      String?
+
+  parentVersion Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([creativeId, version])
+  @@index([creativeId, createdAt])
+  @@map("creative_versions")
+}
+
+/// Un archivo exportado.
+///
+/// Es desechable a propósito: multiplicando formatos por idiomas por variantes
+/// salen cientos por campaña. Caducan y se rehacen desde el documento cuando
+/// hagan falta.
+model CreativeRender {
+  id         String   @id
+  creativeId String
+  creative   Creative @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+
+  /// Clave del formato al que se exportó.
+  format   String
+  /// jpg | png | webp | gif | mp4 | webm | html5
+  fileType String
+  locale   String @default("es")
+
+  width     Int
+  height    Int
+  sizeBytes Int?
+
+  status     RenderStatus @default(PENDIENTE)
+  /// Clave en el almacenamiento de objetos; la URL pública se compone al servir.
+  storageKey String?
+  url        String?
+  /// Hash del contenido: dos exportaciones idénticas no se guardan dos veces.
+  checksum   String?
+
+  /// Resultado del validador: qué reglas del formato falla, si falla alguna.
+  validation Json?
+  error      String?
+
+  /// Cuándo se puede borrar. El documento sigue estando.
+  expiresAt DateTime?
+
+  createdById String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([creativeId, format])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@map("creative_renders")
+}
+
+model StudioAsset {
+  id   String          @id
+  kind StudioAssetKind @default(IMAGEN)
+  name String
+
+  storageKey String
+  url        String
+  mimeType   String?
+  width      Int?
+  height     Int?
+  durationMs Int?
+  sizeBytes  Int?
+  blurhash   String?
+
+  source        StudioAssetSource @default(SUBIDA)
+  /// De qué activo deriva, cuando es una edición de otro.
+  derivedFromId String?
+  derivedFrom   StudioAsset?      @relation("DerivadoDe", fields: [derivedFromId], references: [id], onDelete: SetNull)
+  derivatives   StudioAsset[]     @relation("DerivadoDe")
+
+  /// Cuando viene del catálogo, de qué producto sale.
+  productId String?
+
+  /// Procedencia de lo generado: con qué modelo, con qué instrucción y semilla.
+  model  String?
+  prompt String?
+  seed   String?
+
+  tags String[] @default([])
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([kind, createdAt])
+  @@index([source])
+  @@index([productId])
+  @@map("studio_assets")
+}
+
+/// Un documento con huecos, reutilizable en otra campaña u otro producto.
+model StudioTemplate {
+  id     String @id
+  name   String
+  /// Familia de formatos a la que sirve: display, social, correo…
+  family String @default("display")
+
+  document   Json
+  /// Miniatura para poder elegir de un vistazo.
+  previewUrl String?
+
+  /// Las de sistema vienen con la plataforma y no se pueden borrar.
+  system Boolean @default(false)
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([family])
+  @@map("studio_templates")
+}
+
+/// Una pieza reutilizable entre campañas: el sello de «-40 %», el botón, la
+/// franja de aviso +18. Se define una vez y sus instancias se actualizan solas.
+model StudioComponent {
+  id   String @id
+  name String
+
+  /// Las capas que la componen, en el mismo formato que las del documento.
+  layers Json
+  width  Int
+  height Int
+
+  previewUrl String?
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("studio_components")
+}
+
+/// Cada llamada a un modelo, con lo que costó.
+///
+/// Una herramienta de IA sin contador es una factura sorpresa. Además del
+/// dinero, esto es lo que permite saber de dónde salió una imagen seis meses
+/// después.
+model AiGeneration {
+  id String @id
+
+  /// anthropic | comfyui
+  provider String
+  model    String
+  /// texto | imagen | edicion | video
+  task     String
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  creativeId String?
+  creative   Creative? @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+
+  prompt         String?
+  parameters     Json?
+  /// Activos de entrada (referencias) y de salida.
+  inputAssetIds  String[] @default([])
+  outputAssetIds String[] @default([])
+
+  /// Deduplicación: la misma entrada no se paga dos veces.
+  inputHash String?
+
+  inputTokens  Int?
+  outputTokens Int?
+  gpuSeconds   Int?
+  costCents    Int  @default(0)
+
+  error String?
+
+  actorId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId, createdAt])
+  @@index([provider, createdAt])
+  @@index([inputHash])
+  @@map("ai_generations")
+}
+
+/// Lo que se gastó en una red, para poder ponerlo al lado de lo que vendió.
+model CampaignSpend {
+  id         String   @id
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  /// Clave de la red: exoclick, trafficstars…
+  network String
+  /// Día al que corresponde el gasto.
+  day     DateTime
+
+  amountCents Int
+  impressions Int @default(0)
+  clicks      Int @default(0)
+
+  /// Introducido a mano o traído por la API de la red.
+  automatic Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campaignId, network, day])
+  @@index([day])
+  @@map("campaign_spends")
+}

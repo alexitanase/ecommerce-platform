@@ -1,0 +1,192 @@
+name: ecom
+
+services:
+  # ── Base de datos principal ────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: ecom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecom_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ecom}
+      # Español y colación por defecto coherentes con el mercado objetivo
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-ecom} -d ${POSTGRES_DB:-ecom}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── Caché, colas (BullMQ), locks y rate limiting ───────────
+  redis:
+    image: redis:7-alpine
+    container_name: ecom-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Buscador del catálogo ──────────────────────────────────
+  meilisearch:
+    image: getmeili/meilisearch:v1.24
+    container_name: ecom-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili_dev_master_key_change_me}
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '${MEILI_PORT:-7700}:7700'
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:7700/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Almacenamiento de objetos (imágenes, activos de marca) ─
+  minio:
+    image: minio/minio:latest
+    container_name: ecom-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Crea los buckets al arrancar y los deja listos para usar
+  minio-init:
+    image: minio/mc:latest
+    container_name: ecom-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin};
+      mc mb --ignore-existing local/${S3_BUCKET:-ecom-media};
+      mc mb --ignore-existing local/${S3_BUCKET_PRIVATE:-ecom-private};
+      mc anonymous set download local/${S3_BUCKET:-ecom-media};
+      echo 'Buckets listos';
+      "
+
+  # ── Servidor de correo de pruebas ──────────────────────────
+  # Todos los emails del entorno local acaban aquí: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ecom-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '${MAILPIT_SMTP_PORT:-1025}:1025'
+      - '${MAILPIT_UI_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Observabilidad ─────────────────────────────────────────
+  # Perfil aparte: en el día a día no hace falta y se ahorra ~400 MB de RAM.
+  # Se levanta con: docker compose --profile observabilidad up -d
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ecom-prometheus
+    profiles: ['observabilidad']
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./infra/observabilidad/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observabilidad/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - ./infra/observabilidad/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      # La API corre en el host, no en un contenedor, durante el desarrollo.
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: ecom-alertmanager
+    profiles: ['observabilidad']
+    restart: unless-stopped
+    volumes:
+      - ./infra/observabilidad/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - '${ALERTMANAGER_PORT:-9093}:9093'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ecom-grafana
+    profiles: ['observabilidad']
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      # Sin registro ni telemetría: es una herramienta interna.
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - ./infra/observabilidad/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observabilidad/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - '${GRAFANA_PORT:-3003}:3000'
+
+  # Jaeger: recibe las trazas por OTLP y las deja consultar por id de pedido.
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: ecom-jaeger
+    profiles: ['observabilidad']
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '${JAEGER_UI_PORT:-16686}:16686'
+      - '${JAEGER_OTLP_PORT:-4318}:4318'
+
+volumes:
+  postgres_data:
+  redis_data:
+  meili_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:

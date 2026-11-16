@@ -1,0 +1,325 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Un push nuevo cancela la ejecución anterior de la misma rama: no tiene
+# sentido gastar minutos validando un commit que ya está obsoleto.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+
+jobs:
+  calidad:
+    name: Lint, tipos y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ecom
+          POSTGRES_PASSWORD: ecom_ci_password
+          POSTGRES_DB: ecom
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ecom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://ecom:ecom_ci_password@localhost:5432/ecom?schema=public
+      # Base propia para las pruebas de integración, que vacían las tablas
+      # entre casos. La conexión a Redis la deriva el propio entorno de
+      # pruebas a otro índice, por el mismo motivo.
+      DATABASE_URL_TEST: postgresql://ecom:ecom_ci_password@localhost:5432/ecom_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      MEILI_HOST: http://localhost:7700
+      MEILI_MASTER_KEY: ci_master_key
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ci
+      S3_SECRET_KEY: ci_secret
+      S3_BUCKET: ecom-media
+      S3_BUCKET_PRIVATE: ecom-private
+      S3_PUBLIC_URL: http://localhost:9000/ecom-media
+      JWT_ACCESS_SECRET: clave_de_integracion_continua_solo_para_tests_1234
+      JWT_REFRESH_SECRET: clave_de_integracion_continua_solo_para_tests_5678
+      ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Turbo cachea por hash de entradas: si nada cambió en un paquete,
+      # su build y sus tests se reutilizan en lugar de repetirse.
+      - name: Cache de Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Generar cliente Prisma
+        run: pnpm db:generate
+
+      - name: Aplicar migraciones
+        run: pnpm --filter @ecom/db exec prisma migrate deploy
+
+      - name: Formato
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Comprobación de tipos
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      # La base de las pruebas de integración se crea aparte y vacía: esas
+      # pruebas hacen TRUNCATE de todas las tablas entre casos, y compartirla
+      # con la de las migraciones dejaría al resto del job sin datos.
+      - name: Preparar la base de integración
+        run: |
+          PGPASSWORD=ecom_ci_password psql -h localhost -U ecom -d postgres \
+            -c 'CREATE DATABASE ecom_test'
+          DATABASE_URL="$DATABASE_URL_TEST" pnpm --filter @ecom/db exec prisma migrate deploy
+
+      # Ejecuta las unitarias y las de integración midiendo cobertura, y falla
+      # si algún paquete baja de su suelo. Sustituye a `pnpm test` y a
+      # `pnpm test:integracion`: son las mismas pruebas, con la medida puesta.
+      - name: Tests y umbral de cobertura
+        run: pnpm test:cobertura
+
+      # Se sube siempre, también cuando el umbral falla: el informe es
+      # justamente lo que dice qué dejó de estar cubierto.
+      - name: Guardar informes de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: |
+            apps/*/coverage/
+            packages/*/coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e:
+    name: Compra de extremo a extremo
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Solo si lo demás pasa: levantar la pila entera para descubrir que no
+    # compila es gastar diez minutos de runner para nada.
+    needs: calidad
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ecom
+          POSTGRES_PASSWORD: ecom_ci_password
+          POSTGRES_DB: ecom
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ecom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: ci_master_key
+          MEILI_NO_ANALYTICS: 'true'
+        ports: ['7700:7700']
+
+    env:
+      DATABASE_URL: postgresql://ecom:ecom_ci_password@localhost:5432/ecom?schema=public
+      REDIS_URL: redis://localhost:6379
+      MEILI_HOST: http://localhost:7700
+      MEILI_MASTER_KEY: ci_master_key
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ci
+      S3_SECRET_KEY: ci_secret
+      S3_BUCKET: ecom-media
+      S3_BUCKET_PRIVATE: ecom-private
+      S3_PUBLIC_URL: http://localhost:9000/ecom-media
+      JWT_ACCESS_SECRET: clave_de_integracion_continua_solo_para_tests_1234
+      JWT_REFRESH_SECRET: clave_de_integracion_continua_solo_para_tests_5678
+      ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      STOREFRONT_URL: http://localhost:3000
+      E2E_ADMIN: http://localhost:5174
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Solo Chromium: con los tres navegadores, la descarga y el arranque
+      # cuestan más que las propias pruebas, y lo que se comprueba aquí
+      # —maquetación y flujo— no cambia entre motores.
+      - name: Instalar Chromium
+        run: pnpm e2e:navegadores
+
+      - name: Preparar base de datos
+        run: |
+          pnpm db:generate
+          pnpm --filter @ecom/db exec prisma migrate deploy
+          pnpm db:seed
+
+      - name: Build
+        run: pnpm build
+
+      - name: Arrancar API, tienda y panel
+        run: |
+          pnpm --filter @ecom/api start &
+          pnpm --filter @ecom/storefront start &
+          # El panel es una SPA estática: se sirve el build con `preview`, que
+          # es lo más parecido a producción sin montar un nginx.
+          pnpm --filter @ecom/admin preview --host &
+
+          # Esperar a que las tres respondan antes de abrir el navegador: sin
+          # esto, la primera prueba falla por llegar demasiado pronto y el
+          # error no dice que el servidor aún no estaba.
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/health > /dev/null \
+               && curl -sf http://localhost:3000/es > /dev/null \
+               && curl -sf http://localhost:5174/ > /dev/null; then
+              echo "Servidores listos"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Los servidores no han respondido a tiempo"
+          exit 1
+
+      - name: Pruebas de extremo a extremo
+        run: pnpm e2e
+
+      # Aparte y en contenedor: las capturas de referencia se comparan píxel a
+      # píxel y la tienda usa la tipografía del sistema, así que el mismo texto
+      # se dibuja distinto en cada máquina. Dentro de la imagen oficial de
+      # Playwright el resultado es idéntico aquí y en el portátil de quien las
+      # generó; fuera de ella, todas fallarían sin que nada se haya roto.
+      - name: Regresión visual
+        run: pnpm e2e:visual
+
+      # El informe con capturas y vídeo del fallo: sin él, un fallo que solo
+      # ocurre en CI se investiga a ciegas.
+      # Con las diferencias de imagen dentro: sin ellas, un fallo visual solo
+      # dice "no coincide" y no hay forma de ver qué cambió.
+      - name: Guardar el informe
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-e2e
+          path: |
+            apps/e2e/playwright-report/
+            apps/e2e/test-results/
+          retention-days: 7
+
+  seguridad:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Falla solo ante vulnerabilidades altas o críticas: bloquear cada PR por
+      # un aviso de severidad baja acaba en que el equipo ignora la auditoría.
+      - name: Auditoría
+        run: pnpm audit --audit-level high
+
+  # ── La comprobación que bloquea el merge ────────────────────
+  #
+  # Es la ÚNICA que hay que marcar como obligatoria en la protección de rama.
+  # Con las tres marcadas por separado, añadir un job nuevo obliga a acordarse
+  # de registrarlo en los ajustes de GitHub, y mientras tanto un fallo suyo no
+  # impide fusionar. Así basta con que dependa de él.
+  #
+  # `needs` por sí solo no vale: si un job se salta o se cancela, el que
+  # depende de él también, y una comprobación saltada cuenta como aprobada. Por
+  # eso se mira el resultado de cada uno explícitamente.
+  todo-verde:
+    name: Todo en verde
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [calidad, e2e, seguridad]
+    steps:
+      - name: Comprobar que ninguna ha fallado
+        run: |
+          echo "Lint, tipos y build: ${{ needs.calidad.result }}"
+          echo "Compra de extremo a extremo: ${{ needs.e2e.result }}"
+          echo "Auditoría de dependencias: ${{ needs.seguridad.result }}"
+
+          if [ "${{ needs.calidad.result }}" != "success" ] \
+            || [ "${{ needs.e2e.result }}" != "success" ] \
+            || [ "${{ needs.seguridad.result }}" != "success" ]; then
+            echo "::error::Hay comprobaciones que no han pasado; no se puede fusionar."
+            exit 1
+          fi
+
+          echo "Todo en verde."

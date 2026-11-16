@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // `dom` porque las pruebas ejecutan código DENTRO del navegador con
+    // `page.evaluate`: ahí `document` y `window` existen, aunque el fichero se
+    // ejecute en Node.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

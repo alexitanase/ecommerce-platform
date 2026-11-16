@@ -1,0 +1,62 @@
+# Enrutado de alertas.
+#
+# La regla que evita la fatiga de alertas: agrupar por alerta y esperar un poco
+# antes de mandar. Si caen los workers, la cola atascada y el outbox sin drenar
+# saltan a la vez y son el mismo incidente — llegan en un solo aviso, no en tres.
+
+global:
+  resolve_timeout: 5m
+  # Sin esto Alertmanager NO ARRANCA: se cierra con "no global SMTP smarthost
+  # set" en cuanto ve un receptor de correo, y el contenedor entra en bucle de
+  # reinicio. Las alertas parecen configuradas y no hay ninguna funcionando.
+  #
+  # En desarrollo apunta a Mailpit, que captura todo sin enviar nada fuera; en
+  # producción se cambia por el servidor real (Resend) con sus credenciales.
+  smtp_smarthost: 'mailpit:1025'
+  smtp_from: 'alertas@tienda.local'
+  # Mailpit no pide autenticación ni TLS. En producción, al contrario.
+  smtp_require_tls: false
+
+route:
+  group_by: ['alertname', 'servicio']
+  # Margen para que las alertas correlacionadas del mismo incidente se agrupen.
+  group_wait: 30s
+  group_interval: 5m
+  # Cada 4 h se repite lo que siga abierto: lo justo para no olvidarlo y no
+  # tanto como para que el canal se convierta en ruido.
+  repeat_interval: 4h
+  receiver: equipo
+
+  routes:
+    # Lo crítico va por un canal que suena de noche; lo demás, al de trabajo.
+    - matchers:
+        - severidad = critica
+      receiver: guardia
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: equipo
+    email_configs:
+      - to: 'alertas@tienda.local'
+        send_resolved: true
+
+  - name: guardia
+    email_configs:
+      - to: 'guardia@tienda.local'
+        send_resolved: true
+    # En producción se añade aquí el webhook de Telegram o el de la
+    # herramienta de guardias. El correo solo no despierta a nadie.
+    # webhook_configs:
+    #   - url: 'https://api.telegram.org/bot<TOKEN>/sendMessage'
+
+inhibit_rules:
+  # Si la API está caída, no tiene sentido avisar además de que hay latencia
+  # alta y errores 5xx: es la misma incidencia contada tres veces.
+  - source_matchers:
+      - alertname = ApiCaida
+    target_matchers:
+      # Comillas dobles: el analizador nuevo de Alertmanager rechaza las
+      # simples y cae al modo antiguo con un aviso en cada arranque.
+      - severidad =~ "critica|alta"
+    equal: ['servicio']

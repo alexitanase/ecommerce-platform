@@ -1,0 +1,22 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+ROADMAP.html
+
+# Código generado por Prisma: no lo formateamos ni lo revisamos
+packages/db/src/generated
+
+# Lo regenera Next en cada build y lleva un "no editar" en la cabecera:
+# formatearlo solo produce un cambio suelto en cada rama
+apps/storefront/next-env.d.ts
+
+# Informes y estado generados por Playwright. Se reescriben en cada ejecución,
+# así que sin esto `format:check` empieza a fallar en cuanto alguien pasa las
+# pruebas en su máquina, por un fichero que ni se escribe a mano ni se guarda.
+apps/e2e/playwright-report/
+apps/e2e/test-results/
+apps/e2e/.test-results-*/
+apps/e2e/.auth/

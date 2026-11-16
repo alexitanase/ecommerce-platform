@@ -1,0 +1,49 @@
+{
+  "name": "ecommerce-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d",
+    "docker:logs": "docker compose logs -f",
+    "db:generate": "pnpm --filter @ecom/db generate",
+    "db:migrate": "pnpm --filter @ecom/db migrate",
+    "db:push": "pnpm --filter @ecom/db push",
+    "db:seed": "pnpm --filter @ecom/db seed",
+    "db:studio": "pnpm --filter @ecom/db studio",
+    "db:reset": "pnpm --filter @ecom/db reset",
+    "setup": "pnpm install && pnpm docker:up && node scripts/wait-for-services.mjs && pnpm db:migrate && pnpm db:seed",
+    "e2e": "pnpm --filter @ecom/e2e test",
+    "e2e:navegadores": "pnpm --filter @ecom/e2e navegadores",
+    "test:integracion": "pnpm --filter @ecom/api test:integracion",
+    "test:cobertura": "turbo run test:cobertura",
+    "e2e:visual": "pnpm --filter @ecom/e2e visual",
+    "e2e:visual:actualizar": "pnpm --filter @ecom/e2e visual:actualizar",
+    "carga": "docker run --rm --network host -v \"$PWD/infra/carga\":/carga -e API_URL=${API_URL:-http://localhost:3001} -e SLUGS=${SLUGS:-botas-de-cuero} grafana/k6:latest run /carga/navegacion.js",
+    "carga:pico": "docker run --rm --network host -v \"$PWD/infra/carga\":/carga -e API_URL=${API_URL:-http://localhost:3001} -e SLUGS=${SLUGS:-botas-de-cuero} grafana/k6:latest run /carga/pico.js",
+    "rangos:buscadores": "node scripts/actualizar-rangos-buscadores.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.39.1",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.65.0"
+  }
+}

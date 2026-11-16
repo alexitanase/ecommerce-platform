@@ -1,0 +1,52 @@
+{
+  "name": "@ecom/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "push": "prisma db push",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "reset": "prisma migrate reset --force",
+    "clean": "rm -rf dist .turbo generated *.tsbuildinfo",
+    "limpiar-descripciones": "tsx prisma/limpiar-descripciones.ts"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@ecom/shared": "workspace:*",
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
+    "sanitize-html": "^2.17.6"
+  },
+  "devDependencies": {
+    "@paralleldrive/cuid2": "^2.3.1",
+    "@types/node": "^24.10.1",
+    "argon2": "^0.44.0",
+    "dotenv": "^17.2.4",
+    "prisma": "^7.9.0",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.3"
+  }
+}

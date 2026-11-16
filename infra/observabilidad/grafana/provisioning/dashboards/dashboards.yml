@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: 'Tienda'
+    orgId: 1
+    folder: 'Tienda'
+    type: file
+    # Los paneles se versionan con el código: un dashboard editado a mano en la
+    # interfaz se pierde en el siguiente despliegue, y eso es intencionado.
+    disableDeletion: false
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap · Plataforma Ecommerce Dropshipping</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --bg-2:#ffffff; --bg-3:#eef0f4;
+    --fg:#0f1216; --fg-2:#5b6472; --fg-3:#8b95a3;
+    --border:#e2e6ec; --border-2:#d3d9e2;
+    --accent:#4f46e5; --accent-2:#7c3aed;
+    --ok:#16a34a; --warn:#d97706; --idle:#94a3b8;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.18);
+    --r:14px;
+  }
+  html[data-theme="dark"]{
+    --bg:#0b0d11; --bg-2:#12151b; --bg-3:#181c24;
+    --fg:#e9edf3; --fg-2:#9aa5b5; --fg-3:#6b7788;
+    --border:#222834; --border-2:#2c3340;
+    --accent:#818cf8; --accent-2:#a78bfa;
+    --ok:#4ade80; --warn:#fbbf24; --idle:#4b5563;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  /* ── Header ───────────────────────────── */
+  header.top{
+    position:sticky;top:0;z-index:50;
+    background:color-mix(in srgb,var(--bg) 85%,transparent);
+    backdrop-filter:blur(14px) saturate(1.4);
+    border-bottom:1px solid var(--border);
+  }
+  .top-in{display:flex;align-items:center;gap:16px;padding:14px 0}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.02em}
+  .logo .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 4px 14px -4px var(--accent)}
+  .logo small{display:block;font-weight:500;font-size:11px;color:var(--fg-3);letter-spacing:0}
+  .spacer{flex:1}
+  .btn{
+    border:1px solid var(--border-2);background:var(--bg-2);color:var(--fg-2);
+    padding:7px 12px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;
+    transition:.15s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{color:var(--fg);border-color:var(--accent);transform:translateY(-1px)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+
+  /* ── Hero / KPIs ──────────────────────── */
+  .hero{padding:34px 0 10px}
+  .hero h1{margin:0 0 6px;font-size:clamp(24px,4vw,34px);letter-spacing:-.03em}
+  .hero p{margin:0;color:var(--fg-2);max-width:70ch}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0 8px}
+  .kpi{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi b{display:block;font-size:24px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .kpi span{font-size:12px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.06em}
+
+  .global{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--shadow);margin-bottom:8px}
+  .global-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .global-head h2{margin:0;font-size:15px;letter-spacing:-.01em}
+  .global-head b{font-size:22px;font-variant-numeric:tabular-nums;margin-left:auto;letter-spacing:-.02em}
+  .bar{height:10px;border-radius:999px;background:var(--bg-3);overflow:hidden;position:relative}
+  .bar>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .bar.split{display:flex}
+  .bar.split>i.done{background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .bar.split>i.prog{background:repeating-linear-gradient(45deg,var(--warn),var(--warn) 6px,transparent 6px,transparent 12px);opacity:.85}
+
+  /* ── Filtros ──────────────────────────── */
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:22px 0 14px;position:sticky;top:60px;z-index:40;
+    padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px)}
+  .chip{border:1px solid var(--border-2);background:var(--bg-2);color:var(--fg-2);padding:6px 12px;border-radius:999px;font-size:12.5px;cursor:pointer;transition:.15s}
+  .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .search{flex:1;min-width:160px;border:1px solid var(--border-2);background:var(--bg-2);color:var(--fg);border-radius:10px;padding:7px 12px;font-size:13px;outline:none}
+  .search:focus{border-color:var(--accent)}
+
+  /* ── Fases ────────────────────────────── */
+  .phase{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
+  .phase.done{border-color:color-mix(in srgb,var(--ok) 40%,var(--border))}
+  .ph-head{display:flex;align-items:center;gap:14px;padding:16px 18px;cursor:pointer;user-select:none}
+  .ph-head:hover{background:var(--bg-3)}
+  .ph-num{width:34px;height:34px;flex:none;border-radius:10px;background:var(--bg-3);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--fg-2);border:1px solid var(--border)}
+  .phase.done .ph-num{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok);border-color:transparent}
+  .ph-title{flex:1;min-width:0}
+  .ph-title h3{margin:0;font-size:15.5px;letter-spacing:-.01em}
+  .ph-title p{margin:2px 0 0;font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ph-meta{display:flex;align-items:center;gap:12px;flex:none}
+  .ph-pct{font-size:13px;font-variant-numeric:tabular-nums;color:var(--fg-2);min-width:38px;text-align:right}
+  .ph-bar{width:120px}
+  .caret{color:var(--fg-3);transition:.2s;font-size:12px}
+  .phase[open-state="1"] .caret{transform:rotate(90deg)}
+  .tasks{display:none;border-top:1px solid var(--border);padding:6px 0}
+  .phase[open-state="1"] .tasks{display:block}
+
+  .task{display:flex;gap:12px;padding:10px 18px;align-items:flex-start;border-bottom:1px solid color-mix(in srgb,var(--border) 55%,transparent)}
+  .task:last-child{border-bottom:0}
+  .task:hover{background:var(--bg-3)}
+  .task.hidden{display:none}
+  .box{
+    width:19px;height:19px;flex:none;margin-top:2px;border-radius:6px;border:1.5px solid var(--border-2);
+    background:transparent;cursor:pointer;display:grid;place-items:center;font-size:11px;color:#fff;transition:.15s
+  }
+  .box:hover{border-color:var(--accent)}
+  .task[data-s="2"] .box{background:var(--ok);border-color:var(--ok)}
+  .task[data-s="1"] .box{background:var(--warn);border-color:var(--warn)}
+  .t-body{flex:1;min-width:0}
+  .t-title{font-size:14px;font-weight:500}
+  .task[data-s="2"] .t-title{color:var(--fg-3);text-decoration:line-through}
+  .t-desc{font-size:12.5px;color:var(--fg-3);margin-top:2px}
+  .t-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .tag{font-size:10.5px;padding:2px 7px;border-radius:6px;background:var(--bg-3);color:var(--fg-3);border:1px solid var(--border);letter-spacing:.02em}
+  .tag.be{color:#0ea5e9;border-color:color-mix(in srgb,#0ea5e9 30%,transparent)}
+  .tag.fe{color:#ec4899;border-color:color-mix(in srgb,#ec4899 30%,transparent)}
+  .tag.ad{color:#f59e0b;border-color:color-mix(in srgb,#f59e0b 30%,transparent)}
+  .tag.in{color:#10b981;border-color:color-mix(in srgb,#10b981 30%,transparent)}
+  .tag.cr{color:#ef4444;border-color:color-mix(in srgb,#ef4444 30%,transparent)}
+  .global.venta{border-color:color-mix(in srgb,#8b5cf6 40%,transparent);background:color-mix(in srgb,#8b5cf6 7%,transparent)}
+  .global.venta .bar i.done{background:#8b5cf6}
+  .global.venta .bar:last-of-type i.done{background:#0891b2}
+  .venta-nota{margin:10px 0 0;font-size:12.5px;line-height:1.6;color:var(--fg-3)}
+  .venta-nota b{color:var(--fg-2);display:block;margin-top:6px}
+  .tag.dp{color:#0891b2;border-color:color-mix(in srgb,#0891b2 45%,transparent);background:color-mix(in srgb,#0891b2 12%,transparent);font-weight:600}
+  .tag.vt{color:#8b5cf6;border-color:color-mix(in srgb,#8b5cf6 45%,transparent);background:color-mix(in srgb,#8b5cf6 12%,transparent);font-weight:600}
+  .t-est{font-size:11.5px;color:var(--fg-3);flex:none;font-variant-numeric:tabular-nums;padding-top:3px}
+
+  /* ── Stack ────────────────────────────── */
+  .stack{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:14px 0 30px}
+  .card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:var(--shadow)}
+  .card h4{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-3)}
+  .card ul{margin:0;padding-left:0;list-style:none}
+  .card li{font-size:13.2px;padding:4px 0;color:var(--fg-2);border-bottom:1px dashed color-mix(in srgb,var(--border) 70%,transparent)}
+  .card li:last-child{border:0}
+  .card li b{color:var(--fg);font-weight:600}
+  h2.sec{font-size:19px;letter-spacing:-.02em;margin:34px 0 4px}
+  h2.sec+p{margin:0 0 6px;color:var(--fg-2);font-size:13.5px}
+  footer{padding:30px 0 50px;color:var(--fg-3);font-size:12.5px;text-align:center}
+  @media(max-width:640px){
+    .ph-bar{display:none} .toolbar{top:56px} .t-est{display:none}
+    .ph-head{padding:14px} .task{padding:10px 14px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="logo"><span class="dot"></span><span>Ecommerce Dropshipping<small>Plan de desarrollo · v1.0</small></span></div>
+    <div class="spacer"></div>
+    <button class="btn sm" id="expand">Expandir todo</button>
+    <button class="btn sm" id="reset">Reiniciar</button>
+    <button class="btn sm" id="theme">🌙</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <h1>Plataforma de Ecommerce + Dropshipping</h1>
+    <p>Backend modular multi‑proveedor (AliExpress y futuros), tienda pública en Next.js y panel de administración en React con Kanban de pedidos.
+       España · español, catalán e inglés · NOWPayments como pasarela principal · estudio de imágenes con IA autoalojado ·
+       tema claro/oscuro · marca configurable desde el admin · VPS propio.</p>
+
+    <div class="kpis">
+      <div class="kpi"><b id="k-done">0</b><span>Tareas hechas</span></div>
+      <div class="kpi"><b id="k-total">0</b><span>Tareas totales</span></div>
+      <div class="kpi"><b id="k-days">0</b><span>Días/dev restantes</span></div>
+      <div class="kpi"><b id="k-phases">0</b><span>Fases completadas</span></div>
+    </div>
+
+    <div class="global venta">
+      <div class="global-head">
+        <h2>🎯 Producto listo para vender</h2>
+        <b id="v-pct">0%</b>
+      </div>
+      <div class="bar split"><i class="done" id="v-done"></i><i class="prog" id="v-prog"></i></div>
+      <p class="venta-nota">
+        Todo lo que hace falta para cobrar de forma legal en España: tarifas de envío,
+        carrito persistente, confirmación del pedido, los cuatro requisitos legales
+        (cookies AEPD, desistimiento, transparencia de precios y verificación de edad
+        por el catálogo +18), cancelaciones y devoluciones.
+        <b id="v-resumen"></b>
+      </p>
+
+      <div class="global-head" style="margin-top:18px">
+        <h2>🚀 Primer despliegue</h2>
+        <b id="d-pct">0%</b>
+      </div>
+      <div class="bar split"><i class="done" id="d-done"></i><i class="prog" id="d-prog"></i></div>
+      <p class="venta-nota">
+        Puesta en producción en el VPS: infraestructura, endurecimiento del servidor,
+        dominio con SSL y checklist de salida. Las credenciales reales de pasarela y
+        proveedor se ponen desde el panel, no editando ficheros en el servidor.
+        Va aparte porque depende de contratar el servidor y el dominio.
+        <b id="d-resumen"></b>
+      </p>
+    </div>
+
+    <div class="global">
+      <div class="global-head">
+        <h2>Progreso global del proyecto</h2>
+        <b id="k-pct">0%</b>
+      </div>
+      <div class="bar split"><i class="done" id="g-done"></i><i class="prog" id="g-prog"></i></div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:12px;color:var(--fg-3)">
+        <span>■ Completado <b id="l-done" style="color:var(--fg-2)">0</b></span>
+        <span>▨ En curso <b id="l-prog" style="color:var(--fg-2)">0</b></span>
+        <span>□ Pendiente <b id="l-todo" style="color:var(--fg-2)">0</b></span>
+      </div>
+    </div>
+  </section>
+
+  <h2 class="sec">Stack tecnológico propuesto</h2>
+  <p>Todo TypeScript de punta a punta, en un monorepo con tipos y lógica de negocio compartidos.</p>
+  <div class="stack">
+    <div class="card"><h4>Backend / API</h4><ul>
+      <li><b>NestJS 11</b> + Fastify · modular, DI, escalable</li>
+      <li><b>PostgreSQL 17</b> + <b>Prisma 6</b> (migraciones, tipos)</li>
+      <li><b>Redis 7</b> · caché, locks, rate limit, sesiones</li>
+      <li><b>BullMQ</b> · colas y workers para pedidos y sync</li>
+      <li><b>Meilisearch</b> · búsqueda facetada y tolerante a typos</li>
+      <li><b>OpenAPI + Zod</b> · contrato tipado y SDK generado</li>
+      <li><b>Cloudflare R2 / S3</b> · imágenes y activos de marca</li>
+    </ul></div>
+    <div class="card"><h4>Tienda (Storefront)</h4><ul>
+      <li><b>Next.js 16</b> App Router + React 19 · SSR/ISR para SEO</li>
+      <li><b>Tailwind CSS v4</b> + <b>shadcn/ui</b> (Radix)</li>
+      <li><b>next-intl</b> · rutas con locale (/es, /en, /fr…)</li>
+      <li><b>next-themes</b> · tema claro/oscuro + tokens de marca</li>
+      <li><b>TanStack Query</b> + <b>Zustand</b> (carrito persistente)</li>
+      <li><b>Motion</b> · microinteracciones · CSS moderno (container queries, :has, view transitions)</li>
+    </ul></div>
+    <div class="card"><h4>Panel Admin</h4><ul>
+      <li><b>Vite 7 + React 19</b> SPA (sin necesidad de SEO)</li>
+      <li><b>TanStack Router / Query / Table</b> · grids potentes</li>
+      <li><b>shadcn/ui</b> + Tailwind v4 · mismo design system</li>
+      <li><b>react-i18next</b> · admin también multi‑idioma</li>
+      <li><b>dnd-kit + SSE</b> · Kanban de pedidos en tiempo real</li>
+      <li><b>Recharts</b> · analítica de ventas y márgenes</li>
+      <li><b>react-hook-form + Zod</b> · formularios validados</li>
+    </ul></div>
+    <div class="card"><h4>Pedidos y escala</h4><ul>
+      <li><b>Máquina de estados</b> del pedido con transiciones auditadas</li>
+      <li><b>Colas por prioridad</b> + reintentos exponenciales + DLQ</li>
+      <li><b>Idempotencia</b> en pagos y envío a proveedor</li>
+      <li><b>Outbox pattern</b> · eventos de dominio fiables</li>
+      <li><b>Workers horizontales</b> · escalado independiente de la API</li>
+      <li><b>Rate limiting</b> por proveedor con token bucket en Redis</li>
+    </ul></div>
+    <div class="card"><h4>Proveedores</h4><ul>
+      <li><b>Adaptador genérico</b> <code>SupplierAdapter</code> (interfaz única)</li>
+      <li><b>AliExpress DS API</b> (Open Platform) como primer adaptador</li>
+      <li>Preparado para <b>BigBuy, CJ Dropshipping, Spocket</b></li>
+      <li><b>Motor de precios</b> · márgenes, redondeo, reglas por categoría</li>
+      <li><b>Sync incremental</b> de stock/precio + sync completo nocturno</li>
+    </ul></div>
+    <div class="card"><h4>Pagos · por prioridad</h4><ul>
+      <li><b>1 · NOWPayments</b> — pasarela principal, 300+ criptos, tasa fija y conversión automática</li>
+      <li><b>2 · Revolut</b> — Merchant API + Revolut Pay (app y tarjeta)</li>
+      <li><b>3 · Stripe</b> — tarjeta, Apple/Google Pay, Bizum, SEPA</li>
+      <li><b>4 · PayPal</b> — alternativa de confianza</li>
+      <li><b>PaymentProvider</b> · misma abstracción que los proveedores: añadir pasarela = añadir adaptador</li>
+      <li>Sin chargebacks en cripto · reembolso vía <b>payout</b> aprobado</li>
+    </ul></div>
+    <div class="card"><h4>Legal (ES/UE)</h4><ul>
+      <li><b>IVA 21%</b>, OSS/IOSS, facturación con serie legal</li>
+      <li><b>Verifactu/SII</b> · requisitos de facturación vigentes</li>
+      <li><b>RGPD/LOPDGDD</b> · consentimiento, export/borrado de datos</li>
+      <li>Desistimiento 14 días · RMA y reembolsos</li>
+      <li>Cobros en cripto valorados en <b>EUR</b> al momento del cobro</li>
+    </ul></div>
+    <div class="card"><h4>Estudio de imágenes IA</h4><ul>
+      <li><b>ComfyUI</b> autoalojado en GPU · workflows por API</li>
+      <li><b>BiRefNet</b> (MIT) · recorte y fondo limpio</li>
+      <li><b>LaMa + PaddleOCR</b> · quitar marcas de agua y texto chino</li>
+      <li><b>Real-ESRGAN / SUPIR</b> · escalado y limpieza</li>
+      <li><b>SDXL · FLUX.1 schnell · Qwen-Image-Edit</b> · pesos abiertos con licencia comercial</li>
+      <li>Modelos propios = <b>sin política de contenido</b> de terceros</li>
+      <li>Aprobación humana obligatoria antes de publicar</li>
+    </ul></div>
+    <div class="card"><h4>Infra y calidad</h4><ul>
+      <li><b>Turborepo + pnpm</b> · monorepo con caché de builds</li>
+      <li><b>Docker Compose</b> (dev) · contenedores en prod</li>
+      <li><b>GitHub Actions</b> · lint, test, build, deploy</li>
+      <li><b>Sentry + OpenTelemetry + Grafana</b> · trazas y alertas</li>
+      <li><b>Vitest + Playwright</b> · unit, integración y E2E</li>
+    </ul></div>
+    <div class="card"><h4>Configuración: el panel manda</h4><ul>
+      <li><b>Todo lo configurable va en el admin</b>, no en el servidor</li>
+      <li>Pasarelas, correo, almacenamiento, buscador, traductor, acceso social e IA</li>
+      <li>Credenciales <b>cifradas</b> (AES-256-GCM) y que no se vuelven a mostrar</li>
+      <li><b>Lo no configurado no se carga ni se ofrece</b> · nada a medias</li>
+      <li>Cada integración se <b>prueba</b> contra el servicio real desde el panel</li>
+      <li>En <code>.env</code> solo lo que se lee antes de existir la base de datos</li>
+    </ul></div>
+    <div class="card"><h4>Estructura del monorepo</h4><ul>
+      <li><code>apps/api</code> · NestJS (REST + webhooks)</li>
+      <li><code>apps/worker</code> · procesadores BullMQ</li>
+      <li><code>apps/storefront</code> · Next.js</li>
+      <li><code>apps/admin</code> · React SPA</li>
+      <li><code>packages/db</code> · Prisma schema y cliente</li>
+      <li><code>packages/shared</code> · tipos, Zod, utilidades</li>
+      <li><code>packages/ui</code> · design system compartido</li>
+      <li><code>packages/suppliers</code> · adaptadores de proveedores</li>
+    </ul></div>
+  </div>
+
+  <h2 class="sec">Plan de desarrollo</h2>
+  <p>Haz clic en una tarea para cambiar su estado: pendiente → en curso → completada. El progreso se guarda en tu navegador.</p>
+
+  <div class="toolbar">
+    <button class="chip" data-f="all" aria-pressed="true">Todo</button>
+    <button class="chip" data-f="0" aria-pressed="false">Pendiente</button>
+    <button class="chip" data-f="1" aria-pressed="false">En curso</button>
+    <button class="chip" data-f="2" aria-pressed="false">Hecho</button>
+    <input class="search" id="q" placeholder="Buscar tarea…">
+  </div>
+
+  <div id="phases"></div>
+
+  <footer>Generado como plan vivo del proyecto · actualiza los estados a medida que avance el desarrollo.</footer>
+</main>
+
+<script>
+// T(título, descripción, días, etiquetas, estado) · estado: 0 pendiente · 1 en curso · 2 hecho
+// El estado vive en este fichero (lo actualiza el desarrollo); si tú tocas una tarea, tu cambio manda en tu navegador.
+const T = (t,d,e,tags,s)=>({t,d,e,tags,s:s||0});
+const PHASES = [
+{n:"Fase 0", title:"Fundaciones y entorno de desarrollo", sub:"Monorepo, base de datos, Docker, CI/CD y convenciones", tasks:[
+  T("Inicializar monorepo Turborepo + pnpm workspaces","Estructura apps/* y packages/*, tsconfig base, alias de rutas",1,["infra"],2),
+  T("Configurar TypeScript estricto, ESLint 9 y Prettier","Reglas compartidas en packages/config, import ordering, husky + lint-staged",1,["infra"],2),
+  T("Docker Compose de desarrollo","Postgres 17, Redis 7, Meilisearch, MinIO y Mailpit con volúmenes persistentes",1,["infra"],2),
+  T("Esquema Prisma inicial y migraciones","Modelos base, convención de IDs (cuid2), soft-delete, timestamps y auditoría",2,["backend"],2),
+  T("Sistema de configuración y variables de entorno","Validación con Zod al arrancar y .env.example documentado. En el entorno solo lo que se lee antes de que exista la base de datos: conexión, secretos de sesión y clave de cifrado; el resto se configura en el panel",1,["backend"],2),
+  T("Esqueleto NestJS + Fastify con healthchecks","Módulos base, versionado /api/v1, CORS, compresión, helmet, graceful shutdown",1,["backend"],2),
+  T("Documentación OpenAPI + generación de SDK tipado","Swagger UI en dev y cliente TS autogenerado consumido por storefront y admin",1,["backend"],2),
+  T("Pipeline CI en GitHub Actions","Cache de pnpm/turbo, lint + typecheck + tests en cada PR, build de imágenes Docker",1,["infra"],2),
+  T("Semillas de datos (seed) para desarrollo","Usuarios demo, categorías, productos de prueba, pedidos en varios estados",1,["backend"],2),
+]},
+
+{n:"Fase 1", title:"Núcleo: identidad, usuarios y permisos", sub:"Autenticación, roles, seguridad y multi-tenant de configuración", tasks:[
+  T("Registro y login con JWT + refresh rotativo","Argon2id, refresh tokens en cookie httpOnly, revocación por dispositivo en Redis",2,["backend","crítico"],2),
+  T("Verificación de email y recuperación de contraseña","Tokens de un solo uso con expiración, plantillas multiidioma",1,["backend"],2),
+  T("Login social (Google y Apple)","OAuth 2.0 con vinculación a cuenta existente por email verificado",1,["backend"],2),
+  T("RBAC con roles y permisos granulares","Owner, admin, gestor de pedidos, soporte, editor de contenido; guards por permiso",2,["backend","crítico"],2),
+  T("2FA por TOTP para el panel admin","Enrolamiento con QR, códigos de recuperación, obligatorio para roles admin",1,["backend"],2),
+  T("Registro de auditoría (audit log)","Quién, qué, cuándo y valores antes/después en toda acción sensible del admin",1,["backend"],2),
+  T("Rate limiting y protección contra fuerza bruta","Límites por IP y por cuenta con Redis, bloqueo progresivo y captcha en umbral",1,["backend"],2),
+  T("Perfiles de cliente y libreta de direcciones","Direcciones de envío/facturación, validación de formato postal español y europeo",1,["backend"],2),
+]},
+
+{n:"Fase 2", title:"Catálogo de productos y búsqueda", sub:"Productos, variantes, categorías, medios, traducciones e indexación", tasks:[
+  T("Modelo de producto con variantes y opciones","SKU, atributos (color/talla), precios por variante, peso y dimensiones para envío",2,["backend","crítico"],2),
+  T("Categorías jerárquicas y colecciones","Árbol anidado, colecciones manuales y automáticas por reglas, orden manual",1,["backend"],2),
+  T("Atributos y filtros configurables","Definición de atributos por categoría, tipos (lista, rango, booleano) y su uso en facetas",1,["backend"],2),
+  T("Traducciones de contenido por idioma","Nombre, descripción, SEO y atributos en español, catalán e inglés, con fallback al idioma por defecto y estructura abierta a nuevos idiomas",2,["backend","crítico"],2),
+  T("Gestión de medios e imágenes","Subida a S3/R2, variantes responsive AVIF/WebP, orden, alt text por idioma, CDN",2,["backend"],2),
+  T("Inventario y control de stock","Stock por variante, reservas temporales en carrito, umbrales de aviso, backorder opcional",2,["backend","crítico"],2),
+  T("Indexación en Meilisearch","Índices por idioma, sinónimos, facetas, ranking por ventas/margen, reindexado incremental",2,["backend"],2),
+  T("Búsqueda con autocompletado y sugerencias","Endpoint de sugerencias, corrección de typos, registro de búsquedas sin resultados",1,["backend"],2),
+  T("Precios avanzados","Precio de coste, PVP, precio comparativo, promociones programadas y precios por país",2,["backend"],2),
+  T("Valoraciones y reseñas de clientes","Solo compradores verificados, moderación, fotos, resumen de puntuación por producto",2,["backend"],2),
+]},
+
+{n:"Fase 3", title:"Capa de proveedores (multi-proveedor)", sub:"Abstracción, AliExpress, sincronización y motor de precios", tasks:[
+  T("Diseñar la interfaz SupplierAdapter","Contrato único: buscar, importar, stock, precio, crear pedido, tracking, cancelar, incidencia",2,["backend","crítico"],2),
+  T("Registro de proveedores y credenciales","Alta de proveedores desde el admin, credenciales cifradas en reposo, activar/desactivar",1,["backend"],2),
+  T("Adaptador de AliExpress (Open Platform DS API)","OAuth del proveedor, firma de peticiones, refresco de token, mapeo de errores",3,["backend","crítico"],2),
+  T("Cliente HTTP resiliente por proveedor","Rate limit token bucket en Redis, reintentos con backoff, circuit breaker y timeouts",2,["backend","crítico"],2),
+  T("Buscador e importador de productos del proveedor","Búsqueda desde el admin, previsualización y importación selectiva de variantes e imágenes",3,["backend","admin"],2),
+  T("Tabla de mapeo producto interno ↔ producto proveedor","Relación N:1 con múltiples proveedores por producto y proveedor preferente por precio/stock",2,["backend","crítico"],2),
+  T("Motor de reglas de precio","Margen por categoría/proveedor, costes de envío, redondeo psicológico (x,99), margen mínimo, tipo de cambio",2,["backend","crítico"],2),
+  T("Sincronización incremental de stock y precio","Job periódico por lotes, detección de cambios, despublicado automático si se agota",3,["backend","crítico"],2),
+  T("Sincronización completa nocturna y detección de bajas","Full sync programado, marcado de productos descatalogados y alertas al admin",1,["backend"],2),
+  T("Panel de salud del proveedor","Latencia, errores, cuota consumida, últimos jobs y reintentos manuales desde el admin",2,["backend","admin"],2),
+  T("Traducción automática de fichas importadas","Título y descripción del proveedor al idioma destino con revisión manual antes de publicar",2,["backend"],2),
+  T("Segundo adaptador de proveedor (ej. BigBuy) como validación","Confirma que la abstracción es realmente agnóstica antes de cerrar el diseño",3,["backend"],2),
+]},
+
+{n:"Fase 4", title:"Estudio de imágenes con IA", sub:"Convertir las fotos del proveedor en catálogo propio de calidad, autoalojado", tasks:[
+  T("Infraestructura de inferencia GPU autoalojada","ComfyUI en contenedor con GPU (serverless por segundos para importaciones masivas + opción dedicada), cola BullMQ propia y API interna; se conecta desde Integraciones como el resto de servicios. Al ser modelos propios no hay políticas de contenido de terceros",3,["infra","crítico"]),
+  T("Recorte de producto y fondo limpio","Segmentación con BiRefNet (licencia MIT), fondo blanco o transparente, sombra de contacto realista y máscara guardada para reutilizar",2,["backend","crítico"]),
+  T("Borrado de marcas de agua y texto del proveedor","Detección con OCR (PaddleOCR) de logos y texto en chino, e inpainting con LaMa para reconstruir el fondo sin dejar rastro",3,["backend","crítico"]),
+  T("Escalado y mejora de calidad","Real-ESRGAN/SUPIR para subir resolución, limpiar artefactos JPEG y ruido de las fotos de baja calidad del proveedor",2,["backend"]),
+  T("Normalización del catálogo","Mismo encuadre, relación de aspecto, márgenes y fondo en toda la tienda para que el listado se vea coherente",2,["backend"]),
+  T("Escenas y relighting conservando el producto","El producto recortado se mantiene píxel a píxel y solo se genera el entorno y la luz (SDXL / Qwen-Image-Edit + IC-Light): la foto sigue siendo del producto real",3,["backend"]),
+  T("Modelos de pesos abiertos sin filtro de contenido","Modelos autoalojados con licencia apta para uso comercial (SDXL, FLUX.1 schnell Apache-2.0, Qwen-Image-Edit) para categorías +18, sin depender de la política de ninguna API externa",2,["infra","crítico"]),
+  T("Cola de revisión y aprobación humana","Comparativa antes/después, aprobar, rechazar o reprocesar; ninguna imagen generada se publica sin visto bueno",2,["admin","crítico"]),
+  T("Editor de imágenes en el admin","Reprocesar con otro preset, ajustes manuales, reordenar, elegir imagen principal y volver al original en un clic",2,["admin"]),
+  T("Presets de estilo por categoría","Cada categoría con su fondo, iluminación y encuadre configurables desde el admin sin tocar código",2,["admin"]),
+  T("Control de coste, caché y métricas","Deduplicación por hash de imagen, caché de resultados, límite de gasto mensual y coste real por imagen procesada",1,["infra"]),
+]},
+
+{n:"Fase 5", title:"Carrito, checkout y pagos", sub:"NOWPayments como pasarela principal, después Revolut, Stripe y PayPal", tasks:[
+  T("Carrito persistente (invitado y registrado)","Cookie de carrito, fusión al iniciar sesión, revalidación de precio y stock al cargar",2,["venta","backend","crítico"],2),
+  T("Cálculo de impuestos (IVA España y UE)","IVA por país y tipo de producto, precios con impuestos incluidos, OSS para ventas UE",2,["backend","crítico"],2),
+  T("Zonas y tarifas de envío","Zonas por país/CP, tarifas por peso o precio, envío gratis desde importe, plazos estimados",2,["venta","backend"],2),
+  T("Cupones y promociones","% o importe fijo, envío gratis, 2x1, mínimo de compra, límite de usos, fechas y exclusiones",2,["backend"],2),
+  T("Abstracción PaymentProvider (multi-pasarela)","Interfaz única: crear cobro, consultar estado, procesar webhook, reembolsar y declarar capacidades (captura diferida, reembolso automático, importe parcial)",2,["backend","crítico"],2),
+  T("Integración NOWPayments · pasarela principal","Invoice/Payment API, selección de moneda, tasa fija (fixed-rate) para blindar la volatilidad, ventana de caducidad y sandbox para pruebas",3,["backend","crítico"],2),
+  T("Callbacks IPN de NOWPayments firmados e idempotentes","Verificación HMAC-SHA512 de la firma, deduplicación de eventos, mapeo de estados (waiting → confirming → confirmed → finished) y reconciliación periódica por si falla el callback",2,["backend","crítico"],2),
+  T("Pagos parciales, sobrepagos y caducados","Reglas de tolerancia por comisión de red, solicitud de diferencia al cliente, abono del exceso, expiración automática y liberación del stock reservado",2,["backend","crítico"],2),
+  T("Valoración en EUR y política de conversión","Registro del tipo de cambio en el momento del cobro para factura y contabilidad, y auto-conversión a stablecoin o EUR para no asumir volatilidad",2,["backend","crítico"],2),
+  T("Reembolsos en cripto vía payouts","Recogida y validación de la dirección de destino y su red, cola de aprobación manual con doble confirmación, límites y trazabilidad completa",2,["backend","crítico"],2),
+  T("Integración Revolut (Merchant API + Revolut Pay)","Segunda pasarela: creación de orden, Revolut Pay y tarjeta, webhooks firmados y reembolsos por API. Sus credenciales ya están declaradas en Integraciones: falta el adaptador",2,["backend"],2),
+  T("Integración Stripe","Tercera pasarela, y la que trae Bizum. Checkout alojado igual que Revolut —la tarjeta no pasa por nuestro servidor, PCI en SAQ A— con los métodos activados desde su panel en vez de fijados en el código, y SCA/3DS gestionado por ellos. Webhook firmado con comprobación de reenvío, cobro, consulta con comisión incluida y reembolso contra el PaymentIntent. Lo que no se da por pagado es la sesión «completada pero sin pagar»: es lo que deja Bizum mientras el dinero está en camino",3,["backend"],2),
+  T("Integración PayPal","Cuarta pasarela, con captura y conciliación en el mismo flujo de pedido. Credenciales desde el panel",1,["backend"]),
+  T("Máquina de estados del pago","Esperando pago, confirmando en red, pagado, pagado parcial, caducado, fallido y reembolsado; transiciones auditadas y compatibles con todas las pasarelas",2,["backend","crítico"],2),
+  T("Selector de método de pago y componentes de checkout","Componentes por pasarela con estados de carga, error y reintento; orden y disponibilidad configurables desde el admin",2,["frontend","crítico"],2),
+  T("Pantalla de pago en cripto","QR y dirección, importe exacto, aviso de red correcta, contador de caducidad, seguimiento del estado en vivo y recuperación si el cliente cierra la pestaña",3,["frontend","crítico"],2),
+  T("Recuperación de carritos abandonados","Detección, secuencia de emails con cupón opcional y métricas de recuperación; incluye pagos cripto caducados sin completar",2,["backend"],2),
+  T("La vuelta de la pasarela cae donde debe","El cobro mandaba al cliente a /pedido/{numero}/gracias, que no existe: una compra real terminaba en un 404 justo después de pagar. Ahora vuelve a la página de gracias por su token —el número es correlativo y no puede abrir una ficha de cliente—, la cancelación vuelve a una pantalla que sí puede cobrar, y las dos llevan el idioma en que se compró",1,["venta","backend","crítico"],2),
+]},
+
+{n:"Fase 6", title:"Motor de pedidos y fulfillment", sub:"El corazón del negocio: del pago al paquete entregado", tasks:[
+  T("Modelo de pedido y máquina de estados","Creado, esperando pago, pago confirmado, en preparación, enviado al proveedor, en tránsito, entregado, cancelado, devuelto; el pedido no se envía al proveedor hasta que la red confirma el pago",3,["backend","crítico"],2),
+  T("Patrón outbox para eventos de dominio","Escritura transaccional del evento y publicación fiable a la cola sin pérdidas",2,["backend","crítico"],2),
+  T("Colas BullMQ con prioridades y DLQ","Colas separadas por tipo (pago, proveedor, tracking, email), reintentos exponenciales y cola muerta",2,["backend","crítico"],2),
+  T("División del pedido por proveedor (order routing)","Agrupa líneas por proveedor, crea sub-pedidos y elige proveedor óptimo por stock/coste/plazo",3,["backend","crítico"],2),
+  T("Envío automático del pedido al proveedor","Job idempotente con clave única, validación de dirección, control de duplicados y confirmación",3,["backend","crítico"],2),
+  T("Gestión de fallos de fulfillment","Sin stock, precio subido por encima del margen, error de API: cola de revisión manual con alertas",2,["backend","crítico"],2),
+  T("Seguimiento de envíos (tracking)","Polling del proveedor + integración con agregador de tracking, timeline por paquete y notificaciones",3,["backend"],2),
+  T("Cancelaciones y modificaciones de pedido","Ventana de cancelación, cancelación en el proveedor si aún es posible, reembolso automático",2,["venta","backend","crítico"],2),
+  T("Devoluciones y RMA","Solicitud desde la cuenta del cliente, aprobación, etiqueta de retorno, reembolso parcial/total",3,["venta","backend"],2),
+  T("Facturación","Generación de factura PDF con numeración legal por serie, rectificativas y envío automático",2,["backend","crítico"],2),
+  T("Conciliación de márgenes por pedido","Coste real del proveedor vs. cobrado, comisiones de pasarela y beneficio neto por pedido",2,["backend"],2),
+  T("La compra al proveedor mira la variante pedida","La comprobación de coste antes de comprar comparaba el coste de la variante PEDIDA contra el del producto, que en AliExpress es el de la primera variante. Con colores de 13,99 € a 39,99 € inventaba subidas del 102 % y paraba pedidos legítimos: cobrados, sin comprar y esperando a que alguien los mirara. La regla de «qué le toca a esta variante» vive ahora en un solo sitio, compartida con la sincronización, que ya la había necesitado antes",2,["venta","backend","crítico"],2),
+  T("Un pedido en incidencia se puede resolver","Antes solo se podía reintentar. Ahora se cierra diciendo que se compró a mano —con la referencia del proveedor, que es lo que permite seguir el paquete— y el pedido avanza; o se cancela desde su ficha, que el panel escondía en ese estado. Y cancelar un pedido cobrado en incidencia AHORA devuelve el dinero: el plan de cancelación lo decidía por una lista de estados que no incluía la incidencia, así que el cliente se quedaba sin pedido y sin reembolso, en silencio",2,["venta","admin","crítico"],2),
+  T("Marcar un cobro a mano cuando la pasarela no avisa","Sin webhook dado de alta —o con una transferencia— el dinero entra y el pedido se queda esperando para siempre. Botón en el panel con motivo obligatorio, permiso aparte, auditoría y evento propio en el historial, que reutiliza el mismo camino del webhook: stock, compra al proveedor y aviso al cliente. Y el botón de preguntar a la pasarela por un cobro, que la API ya tenía sin que el panel lo usara",1,["venta","admin","crítico"],2),
+  T("Prueba de carga del flujo de pedidos","k6 simulando picos de pedidos simultáneos; medir latencia, throughput de colas y cuellos de botella",2,["infra","crítico"]),
+]},
+
+{n:"Fase 7", title:"Notificaciones y comunicación", sub:"Emails transaccionales multiidioma y avisos internos", tasks:[
+  T("Servicio de email transaccional","Resend/SES con cola dedicada, reintentos, registro de entregas y rebotes",1,["backend"],2),
+  T("Plantillas de email con React Email","Diseño responsive, marca dinámica (logo/colores) y traducidas por idioma del cliente",2,["backend"],2),
+  T("Catálogo de notificaciones al cliente","Confirmación, pago, envío, tracking actualizado, entrega, devolución, reseña solicitada",2,["backend"],2),
+  T("Alertas internas para el equipo","Incidencias de fulfillment, caída de proveedor, stock crítico y pagos fallidos por email/Slack",1,["backend"],2),
+  T("Preferencias de comunicación y bajas","Gestión de consentimiento de marketing, enlace de baja y registro para cumplir RGPD",1,["backend"],2),
+  T("Notificaciones en el navegador (opcional)","Web Push para avisos de envío y ofertas, con consentimiento explícito",1,["backend"]),
+]},
+
+{n:"Fase 8", title:"Storefront público (Next.js)", sub:"La experiencia de compra: rápida, bonita y accesible", tasks:[
+  T("Base del proyecto Next.js 16 + Tailwind v4","App Router, layouts, fuentes optimizadas, tokens de diseño y estructura de carpetas",2,["frontend"],2),
+  T("Design system compartido (packages/ui)","Botones, inputs, modales, toasts, skeletons; documentado y usado por tienda y admin",3,["frontend","crítico"],2),
+  T("Sistema multi-idioma con next-intl","Rutas /es /ca /en, detección por navegador, selector, hreflang y traducciones por namespace; añadir un idioma nuevo no requiere tocar componentes",2,["frontend","crítico"],2),
+  T("Tema claro/oscuro sin parpadeo","next-themes + variables CSS, respeto de prefers-color-scheme y persistencia por usuario",1,["frontend"],2),
+  T("Home dinámica por bloques","Hero, destacados, colecciones, banners y testimonios configurables desde el admin",2,["frontend"],2),
+  T("Listado de categoría con filtros facetados","Filtros por atributo, precio, valoración; orden, paginación infinita y URLs compartibles",3,["frontend","crítico"],2),
+  T("Página de producto","Galería con zoom, selector de variantes, stock, plazo de entrega, envío, reseñas y relacionados",3,["frontend","crítico"],2),
+  T("Búsqueda instantánea","Overlay con resultados en vivo, sugerencias, historial y búsquedas populares",2,["frontend"],2),
+  T("Carrito lateral y página de carrito","Actualización optimista, sugerencias de cross-sell y cálculo de envío estimado",2,["frontend"],2),
+  T("Checkout completo en un paso","Datos, envío y pago en una vista, con autocompletado de dirección, validación en vivo, resumen fijo y estados de error claros para cualquier pasarela",3,["frontend","crítico"],2),
+  T("Página de confirmación y seguimiento","Resumen, plazo estimado, enlace de tracking y creación de cuenta con un clic",1,["venta","frontend"],2),
+  T("Área de cliente","Pedidos y su estado, tracking, facturas, direcciones, devoluciones, datos y privacidad",3,["frontend"],2),
+  T("El pedido se queda en la cuenta de quien compra","La tienda creaba el pedido sin mandar el token de sesión, así que la API lo registraba como de invitado: el email correcto, el correo enviado, y en «mis pedidos» nada. Ahora el checkout recupera la sesión, no vuelve a pedir el email, propone la dirección guardada y guarda la nueva si no la tenía. Los pedidos ya hechos sin sesión se adoptan al entrar en «mis pedidos», solo si el email de la cuenta está verificado —sin esa condición bastaría registrarse con la dirección de otra persona para leer sus compras—, y se puede pedir de nuevo el correo de verificación, que antes no había forma de reenviar",2,["venta","frontend","crítico"],2),
+  T("Lista de deseos y vistos recientemente","Sincronizada con la cuenta y persistente para invitados",1,["frontend"],2),
+  T("Páginas de contenido y legales dinámicas","Renderizan el contenido creado en el admin, por idioma, con ISR",1,["frontend"],2),
+  T("Banner de cookies y gestión de consentimiento","Categorías granulares, bloqueo previo de scripts y registro de consentimiento (RGPD)",2,["frontend","crítico"],2),
+  T("Responsive y microinteracciones","Mobile-first real, container queries, view transitions, animaciones sutiles con Motion",2,["frontend"],2),
+  T("Accesibilidad AA y rendimiento","Navegación por teclado, foco visible, contraste, Core Web Vitals verdes en móvil",2,["frontend"],2),
+  T("PWA e imágenes optimizadas","Manifest con marca dinámica, offline básico, next/image con AVIF y lazy loading",1,["frontend"],2),
+  T("Revisión de UI/UX de la tienda","Pasada completa de coherencia visual: sistema de espaciado y tipografía, botones e iconos unificados, cabecera y pie, fichas y listados, formularios y estados de error, vacío y carga. Se revisa pantalla a pantalla en móvil y escritorio",3,["frontend"],2),
+  T("Acceso de clientes en la tienda","Entrar, registro, recuperar contraseña, verificar email y cerrar sesión. La API ya lo soporta entero; faltan las pantallas, y sin ellas los enlaces de los correos ya enviados acaban en un 404",3,["venta","frontend","crítico"],2),
+  T("Entrar con Google desde la tienda","El botón en entrar y registro, la vuelta del proveedor a la tienda y el aviso cuando falla o se cancela. La API lo tenía entero desde la fase 1 y la tienda no lo ofrecía en ninguna parte: configurar la integración en el panel no hacía aparecer nada, y la vuelta de Google acababa en una página de JSON con el token a la vista. El panel enseña ahora la URL de retorno que hay que autorizar en Google, que es el paso que hace fallar todo lo demás",1,["venta","frontend","crítico"],2),
+  T("La variante elegida manda en la ficha","Cada valor con su foto y su nombre, rótulo sobre la galería, y el precio grande siguiendo a la variante en vez del «desde»: con precios de 18,99 € a 54,99 € en el mismo producto, la ficha anunciaba uno y el botón cobraba otro. Además el plazo de entrega en fechas —«Llega entre el 11 y el 21 de agosto», con el país de origen— en lugar de una pastilla que decía «China Mainland». Y los valores de cada opción salen del más barato al más caro: el orden del proveedor no significa nada y ponía el color de 54,99 € delante del de 18,99 €, que es justo el precio que anuncia la tarjeta del catálogo",2,["venta","frontend","crítico"],2),
+  T("Imagen de portada por categoría, en caché","Cada categoría enseña una foto de uno de sus productos sin que nadie tenga que subirla: se elige una del catálogo, se guarda en la propia categoría y se cambia sola cada dos o tres semanas. Es lo que permite que la portada, la página de categorías y los filtros salgan con imagen desde el primer día, sin pedir una foto por categoría a mano ni consultar el catálogo en cada visita. La que suba el panel sigue mandando sobre la automática",1,["backend","frontend"],2),
+  T("Las portadas de categoría no aparecían en producción","La tarea estaba desplegada y las 318 categorías seguían sin foto. El motivo: BullMQ programa la primera ejecución de un `every: 24h` un día DESPUÉS de arrancar, así que se desplegaba la función y durante 24 horas parecía rota. Y al intentar corregirlo salió lo de debajo: `add({repeat})` no actualiza una programación que ya existe en Redis, de modo que cambiar el horario en el código no cambia nada y no hay ningún error que lo delate. Se migra a los programadores de BullMQ (`upsertJobScheduler`), que sí sustituyen, con un `alArrancar` explícito para decidir cuáles se ejecutan al desplegar: las portadas sí, los correos de carrito abandonado no. De paso se retiran las programaciones antiguas que quedaban vivas en Redis en paralelo a las nuevas, que habrían duplicado cada tarea periódica",1,["backend","crítico"],2),
+  T("La portada enlazaba a categorías vacías","Cinco de las nueve categorías de la portada llevaban a un listado sin un solo producto: eran las del catálogo inicial, que se quedaron sin nada al importar el de Dreamlove bajo otras ramas. El filtro de categorías vacías solo se aplicaba a la selección automática; con lista elegida a mano desde el panel se respetaba tal cual. Ahora se aplica siempre, como ya hacía el menú de navegación —la incoherencia entre los dos es lo que produjo el fallo—, y mirando la RAMA y no los productos propios: filtrando por producto directo se esconderían justo las categorías grandes, que tienen miles por debajo y ninguno suyo",1,["venta","backend"],2),
+  T("El correo no salía y nadie se enteraba","La tienda llevaba tiempo sin mandar UN SOLO email —ni confirmación de pedido, ni aviso de envío, ni recuperar contraseña— y por fuera todo parecía normal: el pedido se cobra y se sirve igual. La causa: ni `.env.produccion.example`, ni `generar-env.sh`, ni `asegurar-env.sh`, ni la guía de despliegue mencionaban el SMTP, así que en producción nunca se configuró. Se cierra el hueco en los tres sitios y se documenta con SPF/DKIM incluidos, pero lo importante es lo otro: un correo que no sale deja ahora el motivo en Ajustes → Integraciones, en vez de una línea en un registro que no lee nadie",2,["venta","backend","crítico"],2),
+  T("La ficha guía hasta la caja","Cuatro cosas sobre la misma pantalla: envío, devoluciones y pago seguro debajo del botón —donde aparecen las dudas que frenan la compra—, un botón de «tramitar pedido» en cuanto hay algo en el carrito (antes el texto del botón cambiaba dos segundos y ahí se acababa la guía: había que encontrar el icono del carrito en la cabecera), los títulos de sección destacados para que la ficha deje de leerse como un muro, y «también te puede interesar» al final de la descripción, que es donde quien ha decidido que este producto no es el suyo o encuentra otro o cierra la pestaña",3,["venta","frontend"],2),
+  T("Factura a petición desde el área de cliente","Solo la podía emitir el equipo desde el panel: quien la necesitaba —y comprando a nombre de una empresa se necesita siempre— tenía que escribir y esperar. Ahora se emite sola desde «mis pedidos», solo en los pagados y solo del titular, comprobado en el servidor: un pedido ajeno responde «no encontrado» y no «no autorizado», que diría qué identificadores existen. La emisión es idempotente, así que pulsar dos veces no rompe la correlatividad de la numeración",2,["venta","backend","frontend"],2),
+  T("Sección de marcas","Mucha gente no busca «vibrador»: busca «Satisfyer». Página con todos los fabricantes, la marca de la ficha convertida en enlace a sus productos, y entrada desde el pie y el sitemap. Las marcas sin nada publicado no salen, con la misma regla que las categorías vacías, y el recuento cuenta solo lo vendible: antes anunciaba el total incluidos los borradores, así que prometía cincuenta productos y enseñaba tres",2,["venta","backend","frontend"],2),
+  T("Pedir valoración unos días después de entregar","Una tienda nueva no tiene ni una reseña, y sin reseñas la ficha es la palabra del vendedor contra la duda del comprador. Cinco días después de la entrega sale un correo con un enlace DIRECTO a la ficha de cada producto comprado: mandando a «mi cuenta» hay que acordarse de qué se compró, buscarlo y encontrar dónde se valora, y ahí se cae casi todo el mundo. Una sola vez por pedido, sin los cancelados ni los de quien pidió el borrado de sus datos",2,["venta","backend"],2),
+  T("Buscador a pantalla completa en el móvil","La lupa de la cabecera abre un buscador que ocupa la pantalla, como el de Amazon: campo enfocado desde el primer momento, sugerencias con foto y precio mientras se escribe, historial de las últimas búsquedas y accesos a las categorías. En el teléfono el campo de la cabecera se comía una fila entera para 166 px de hueco donde no cabe ni la palabra que se escribe",2,["venta","frontend","crítico"],2),
+  T("Catálogo en cuadrícula o en lista","Conmutador entre las dos vistas, recordado entre visitas. La fila enseña el nombre entero, la valoración y el precio sin recortar, que es lo que hace falta para comparar; la cuadrícula es para mirar. Hoy solo había cuadrícula y en el móvil eran dos columnas de títulos cortados a dos líneas",2,["venta","frontend"],2),
+  T("Carga progresiva del catálogo","Las páginas siguientes se cargan solas al llegar al final, hasta un tope; a partir de ahí, paginación normal. Sin tope, quien entra a mirar acaba con mil productos en memoria y no puede volver atrás; sin carga automática, cada página nueva es un clic y una recarga entera",2,["venta","frontend"],2),
+  T("Filtros en panel deslizante y categorías con foto","En el móvil los filtros se abren en un panel a pantalla completa con su propio botón de aplicar, en vez de empujar el listado hacia abajo. Y las categorías del buscador salen con su imagen de portada, que es lo que las convierte en algo que se mira en lugar de una lista de texto",2,["venta","frontend"],2),
+  T("Página de todas las categorías","Una pantalla con el árbol entero bien organizado —raíces con su foto, sus hijas debajo y el número de productos—, buscador de categorías y enlace desde el menú. Sin ella, para llegar a una categoría que no esté en el menú hay que acertar con el buscador de productos",2,["venta","frontend"],2),
+  T("El envío no se veía hasta la pasarela y el teléfono era opcional","Dos agujeros en el último paso, que es donde se pierde la venta. El carrito prometía que el porte se calculaba «en el siguiente paso» y el siguiente paso no lo enseñaba: el primer sitio donde aparecía era la pantalla de pago, con un importe distinto del que ponía el botón —además de incumplir el art. 60.2.c del TRLGDCU, que obliga a informar de los gastos de entrega antes de que el cliente quede vinculado—. El endpoint de tarifas existía y no lo llamaba nadie. Ahora el checkout pide las opciones al escribir el código postal, se elige entre ellas, el resumen desglosa subtotal y envío, y el botón dice el total de verdad. El importe y el peso los pone el catálogo, no el navegador, así que lo que se enseña es lo que se cobra. Y el teléfono pasa a obligatorio: el transportista avisa por SMS y varios proveedores devuelven el pedido sin él",2,["venta","frontend","backend","crítico"],2),
+  T("Una categoría vale por lo que tiene debajo","La regla estaba escrita cuatro veces con cuatro criterios distintos, y la incoherencia entre ellos es lo que se veía: la portada elegía doce categorías de una ventana de sesenta ANTES de descartar las vacías, así que con 318 ramas importadas las secciones con producto se quedaban fuera y salían hojas sueltas o ninguna; el sitemap miraba el producto propio y dejaba fuera del buscador justo las categorías grandes; el árbol contaba borradores, así que anunciaba «312 productos» donde no había ninguno; y el listado filtraba por identificador de forma exacta, de modo que entrar en la misma categoría por el menú o por el filtro daba resultados distintos. Ahora es una sola función probada, y una categoría cuenta si su rama tiene algo a la venta. De paso, el listado dejaba de titularse en el idioma que se estaba viendo: ordenaba las traducciones por código y en español devolvía el catalán",2,["venta","backend","crítico"],2),
+  T("Botones de compartir en la ficha","En una tienda de catálogo restringido esto no es un adorno: Google Ads y Meta no admiten el producto, así que el enlace que un cliente le pasa a otro por WhatsApp es de los pocos canales que quedan. WhatsApp, Telegram, correo y copiar el enlace, con el diálogo nativo del móvil en su lugar cuando el navegador lo trae —ese ya lleva dentro lo que la persona tenga instalado, y repetir debajo nuestra propia fila sería ofrecer dos veces lo mismo—. Facebook y X fuera a propósito: nadie publica un artículo +18 en su muro. Se comparte la URL canónica y no la de la barra, así que el enlace no viaja con los parámetros de la campaña por la que llegó quien lo manda",1,["venta","frontend"],2),
+  T("Un producto sin traducir mandaba al cliente a un 404","Tres fallos encadenados en un solo clic desde los destacados de la portada. Un catálogo importado viene en un idioma, pero los listados pedían a la base solo la traducción del idioma que se estaba viendo y, al no haberla, caían al identificador interno: en la tienda en inglés salía una tarjeta titulada «handle-a1b2c3» que además enlazaba a esa cadena como si fuera un slug. Al pulsarla, 404. Y el 404 era el de fábrica de Next —fondo blanco, en inglés, sin cabecera, sin pie y sin un solo enlace—, así que desde ahí lo único que se podía hacer era cerrar la pestaña. Ahora: los cinco listados que construían enlaces así usan la traducción que haya (idioma pedido → español → la que exista) y descartan el producto sin ninguna; la ficha resuelve además el slug de otro idioma y el handle, que es lo que arregla los enlaces ya compartidos y los que Google tiene indexados; y la tienda tiene por fin su propia página de no encontrado, con sus textos —que llevaban traducidos a tres idiomas desde el principio, sin usar— y dos salidas",2,["venta","backend","frontend","crítico"],2),
+  T("La tarjeta del enlace compartido, con foto","Compartir un producto o una categoría enseñaba en el chat el nombre genérico de la tienda y ninguna imagen. La causa no eran los metadatos sino la puerta de edad: los robots de WhatsApp, Telegram o X piden la página sin cookies, así que recibían el formulario de verificación —da igual lo bien puesto que esté el Open Graph detrás—. Ahora esos robots pasan la puerta (leen la cabecera y se van; quien pulsa el enlace sigue viéndose la verificación), la ficha sirve la tarjeta completa —título, texto, `og:url`, foto CON sus medidas y `twitter:card`, sin lo cual WhatsApp descarta la imagen y X la enseña cuadrada— y la categoría, que no tenía ningún metadato para compartir, sale con su portada. Para el catálogo +18 hay un extremo aparte que devuelve solo nombre, texto y foto sin comprobar la edad: la ficha completa responde 403 y ningún robot verifica nada. Sigue con `noindex`, así que la tarjeta se ve en el chat y el producto no entra en Google",2,["venta","backend","frontend"],2),
+  T("El «timeout» del correo era el puerto, no la red","El buzón real de la tienda va en el 465 y la casilla «Conexión cifrada» viene desmarcada de fábrica, así que la API se conectaba en claro a un puerto que espera TLS desde el primer byte. Eso no da un error: deja a los dos lados esperando y a los treinta segundos suelta «Greeting never received», que parece un cortafuegos o un servidor caído —y despista del todo porque el mismo buzón funciona desde el móvil—. Comprobado contra el servidor de verdad: en claro, plantón de 10 s; cifrado, conexión en 203 ms con las mismas credenciales. Ahora el puerto manda sobre la casilla en el 465 y en el 587, que es como funciona el protocolo y no una preferencia; el fallo de conexión se explica diciendo servidor, puerto y qué mirar en vez de repetir el mensaje de la librería; y la guía de despliegue documenta el caso del buzón normal, que era el único que no contemplaba",1,["backend","crítico","venta"],2),
+  T("Página de ofertas","Todo lo rebajado en una pantalla, con los mismos filtros que el catálogo —categoría, marca, precio y buscador— porque es el mismo listado con un filtro puesto de antemano, y quien busca una oferta concreta no tiene por qué aprender otra pantalla. Ordena por mayor descuento, que es como se mira: nadie entra buscando el 5 %. «Tiene descuento» es una comparación entre dos campos y Meilisearch no sabe filtrar por eso, así que el índice guarda `enOferta` y el porcentaje, y el propio índice detecta que le faltan y se reconstruye solo al desplegar. De paso se corrige un descuento que mentía: se emparejaba el precio de la variante más barata con el precio anterior de OTRA variante, y unas botas de 39,99 anunciaban un -67 % contra un precio que esa talla nunca tuvo",3,["venta","backend","frontend"],2),
+  T("El filtro de categorías era un callejón sin salida","Al elegir una categoría, la lista de categorías se quedaba con esa sola dentro —eran las de los RESULTADOS, y los resultados ya eran solo de ella—: no se podía bajar a una subcategoría, ni saltar a otra, ni volver, salvo «Limpiar filtros», que además se llevaba el precio y la marca. Ahora se navega el árbol como en cualquier tienda: migas para subir, subcategorías para bajar y, en la última rama, las hermanas. Y el número de productos se salía 22 px de la tarjeta, encima del listado: era el `min-width: min-content` que el navegador pone de fábrica a los `fieldset`, que ningún `w-full` de dentro cambia y que con un nombre en una sola línea vale el texto entero",2,["venta","frontend"],2),
+  T("Entrar y registrarse se veían pequeños en el escritorio","Una tarjeta de 672 px pegada al margen izquierdo con 800 px de vacío al lado y el título flotando encima: la pantalla parecía a medio cargar. Es la excepción a la regla de no centrar las páginas de una columna, y por eso se documenta: aquello vale para un texto que se lee dentro de algo más grande, y aquí la tarjeta ES la página. Centrada, más estrecha, con el título centrado y una frase que dice para qué sirve entrar. Recuperar y restablecer la contraseña van igual, que son la misma pantalla",1,["venta","frontend"],2),
+  T("Tres arreglos de la tienda a la vista","«Mi lista» vacía enseñaba un botón que decía «producto.ver_mas»: la clave estaba en el espacio de nombres equivocado y salía el identificador en crudo. La cabecera pintaba el logotipo Y el nombre de la tienda al lado, repitiendo la marca dos veces y comiéndose el ancho que en el escritorio le hace falta al buscador. Y el menú de la tienda descartaba en silencio las categorías sin productos publicados en su rama —las del catálogo inicial, que se quedaron vacías al importar el del proveedor— así que se añadían desde el panel y no aparecían nunca: ahora el desplegable dice cuántos productos tiene cada una y avisa al elegir una vacía",1,["venta","frontend","admin"],2),
+  T("El pie dice quién vende y cómo se paga","El logotipo también abajo —y entonces el nombre no se repite debajo, que ya va dentro del logotipo—, y una fila con las formas de pago aceptadas. No es adorno: en una tienda desconocida, y más con catálogo +18, ver la tarjeta de siempre ahí abajo es lo que responde a «¿esto es real?» sin llegar a la caja. Sale de las pasarelas que están encendidas Y con credenciales, no de una lista escrita a mano, y una sola pasarela agregadora se despliega en las formas que de verdad trae: con Stripe salen Visa, Mastercard, Amex, Apple Pay, Google Pay y Bizum. Las marcas van dibujadas en el propio HTML —sin ficheros que subir, sin una petición por marca y sin un CDN de terceros al que contarle desde qué página viene cada visitante—. De paso se cierra el cabo suelto que destapó: el dato se cachea una hora, así que configurar una pasarela ahora purga la caché de la tienda desde los DOS sitios donde se toca —encenderla y ponerle las claves— porque hacen falta las dos cosas para poder cobrar",1,["venta","frontend","backend"],2),
+]},
+
+{n:"Fase 9", title:"Panel de administración", sub:"Control total de la plataforma en una SPA rápida", tasks:[
+  T("Base del admin: Vite + React 19 + TanStack Router","Layout con navegación lateral, rutas protegidas por permiso, atajos de teclado",2,["admin"],2),
+  T("Multi-idioma y tema claro/oscuro del admin","react-i18next, selector de idioma y tema persistente por usuario",1,["admin"],2),
+  T("Dashboard de negocio","Ventas, pedidos, ticket medio, margen, conversión, top productos y comparativa de periodos",3,["admin"],2),
+  T("Gestión de productos","Tabla con filtros y acciones masivas, editor con variantes, medios, SEO y traducciones",4,["admin","crítico"],2),
+  T("Ficha de producto con coste, margen y editor de imágenes","Pantalla propia por producto: coste real del proveedor y margen calculado por variante, deslizador de margen con simulación en el servidor, datos de envío (peso y medidas), plazo de entrega, publicación con avisos y galería con subida, descarga y recorte de imágenes",4,["admin","crítico","venta"],2),
+  T("Gestión de categorías, colecciones y atributos","Árbol drag & drop, reglas de colecciones automáticas y editor de atributos",2,["admin"],2),
+  T("Ficha de cliente y de administrador completas","La ficha del cliente era una tira de cuatro bloques seguidos con lo justo; ahora son seis pestañas con lo que hace falta para atender una llamada sin entrar en la base de datos: resumen con las cifras, pedidos, CARRITOS SIN COMPRAR con sus líneas y el precio al que se añadieron, SESIONES ABIERTAS con dispositivo e IP y un botón para cerrarlas todas, direcciones y privacidad. Y dice CÓMO ACCEDE —contraseña, Google, las dos—: «no me deja entrar con mi contraseña» tiene otra respuesta si la cuenta se creó con Google y nunca tuvo una, y antes no había forma de saberlo. Se puede además bloquear y reactivar la cuenta, que hasta ahora exigía el permiso del personal. En el equipo, cada administrador despliega sus sesiones abiertas y se pueden cerrar, con buscador y filtro por estado. Dos cerrojos que las pruebas fijan: el hash de la contraseña se lee para saber si hay acceso directo y se descarta antes de responder —un spread de más lo publicaba en el panel—, y los endpoints de cliente rechazan el id de un administrador, porque si no el permiso de atención al cliente serviría para echar a un compañero del panel",3,["admin","venta","crítico"],2),
+  T("Importador desde proveedor","Buscar en el proveedor, previsualizar, aplicar reglas de precio e importar en lote",3,["admin","crítico"],2),
+  T("Gestión de pedidos","Listado con filtros por estado, ficha completa, timeline, notas internas y acciones (reembolso, cancelar, reenviar)",4,["admin","crítico"],2),
+  T("Tablero Kanban de pedidos","Columnas del ciclo completo: esperando pago → pago confirmado → enviado al proveedor → en tránsito → entregado → pendiente de cerrar. Tarjeta con nº de pedido, cliente, importe, margen, proveedor y tracking",4,["admin","crítico"],2),
+  T("Arrastrar y soltar con reglas de transición","dnd-kit accesible (también por teclado); solo se permiten movimientos válidos según la máquina de estados y el permiso del usuario, y cada movimiento manual queda auditado",2,["admin","crítico"],2),
+  T("Kanban en tiempo real","Los workers mueven las tarjetas solos vía SSE: cuando el proveedor confirma o el tracking cambia, el tablero se actualiza sin recargar",2,["admin","crítico"],2),
+  T("Cierre y archivado manual del pedido","Un pedido entregado se queda en 'pendiente de cerrar' hasta que lo confirmas; al cerrarlo desaparece del tablero y pasa al histórico, con opción de reabrir",2,["admin","crítico"],2),
+  T("Alertas de antigüedad y SLA en el tablero","Color e icono según los días que lleva un pedido parado en una columna, para detectar los atascados antes de que el cliente reclame",1,["admin"],2),
+  T("Filtros, agrupación y rendimiento del tablero","Filtros por proveedor, país, método de pago y etiqueta; columnas virtualizadas para mover cientos de pedidos sin que se ralentice",2,["admin"],2),
+  T("Cola de incidencias de fulfillment","Bandeja de pedidos bloqueados con causa, acción sugerida y resolución en un clic",2,["admin","crítico"],2),
+  T("Gestión de devoluciones y reembolsos","Aprobar/rechazar RMA, reembolsos parciales y trazabilidad con el proveedor",2,["admin"],2),
+  T("Gestión de clientes","Ficha con historial, valor de vida, direcciones, notas, y acciones RGPD (exportar/anonimizar)",2,["admin"],2),
+  T("Gestión de proveedores","Alta, credenciales, reglas de precio, prioridad, salud de la API y logs de sincronización",2,["admin","crítico"],2),
+  T("Gestión de envíos e impuestos","Zonas, tarifas, reglas de envío gratis y configuración de IVA por país",2,["admin"],2),
+  T("Gestión de métodos de pago","Activar pasarelas, orden en el checkout, criptos aceptadas, comisiones, cola de reembolsos cripto pendientes de aprobar y conciliación de cobros",2,["admin","crítico"],2),
+  T("Gestión de cupones y promociones","Creador de campañas con previsualización de impacto y métricas de uso",2,["admin"],2),
+  T("Gestión de reseñas","Moderación, respuesta pública y detección de contenido inapropiado",1,["admin"],2),
+  T("Usuarios del equipo, roles y permisos","Invitaciones, asignación de roles, permisos granulares y sesiones activas",2,["admin"],2),
+  T("Visor de auditoría y registro de actividad","Búsqueda por usuario, entidad y fecha con diff de cambios",1,["admin"],2),
+  T("Informes exportables","Ventas, márgenes, IVA, stock y conciliación en CSV/Excel, con envío programado por email",2,["admin"],2),
+  T("Centro de trabajos y colas","Estado de BullMQ: en curso, fallidos, DLQ, reintentar o descartar desde la interfaz",2,["admin","crítico"],2),
+  T("Revisión de UI/UX del panel","Pasada completa de coherencia y organización: barra lateral y navegación, barra superior, tablas (densidad, orden, filtros, paginación, acciones en lote), botones e iconos, formularios, estados vacíos y de carga, y jerarquía de las pantallas más usadas",3,["admin"],2),
+
+  T("Panel 2026 · Sistema de diseño y accesibilidad","Base del rediseño: HTML semántico, tokens en variables CSS, escala de espaciado múltiplo de 4px, rejilla de 12 columnas, tipografía con cifras tabulares, tema claro/oscuro y auditoría WCAG 2.2 AA (contraste, foco visible, objetivo mínimo, navegación completa por teclado)",2,["admin","crítico"],2),
+  T("Panel 2026 · Shell de la aplicación","Cabecera fija con buscador global, notificaciones y avatar; barra lateral colapsable con off-canvas en móvil; main y pie. Enlace de salto al contenido y puntos de referencia ARIA correctos",2,["admin","crítico"],2),
+  T("Panel 2026 · Navegación y orientación","Navegación jerárquica con ítem activo real, migas de pan, cabecera de página (título + acciones), pestañas accesibles y paginación coherente en todo el panel",2,["admin"],2),
+  T("Panel 2026 · Paleta de comandos (⌘K)","Buscador de acciones y pantallas con teclado, resultados agrupados, filtrado por permiso y navegación directa; sustituye al buscador global cuando se pulsa el atajo",2,["admin"],2),
+  T("Panel 2026 · Tarjetas KPI con comparativa","Valor con cifras tabulares, variación frente al periodo anterior, sparkline y tooltip con la definición de la métrica. Ningún número se muestra sin su comparativa",2,["admin","crítico"],2),
+  T("Panel 2026 · Tabla de datos completa","Un único componente con thead/tbody/tfoot, caption, scope, cabecera pegajosa, orden, selección múltiple, acciones por fila y en bloque, barra de herramientas (búsqueda, filtros, columnas, exportar), fila expandible y totales",4,["admin","crítico"],2),
+  T("Panel 2026 · Componentes de presentación de datos","Listas, timeline de actividad, listas de definición clave-valor, tarjetas, barras de progreso, insignias, etiquetas y avatares, todos con la misma escala y tokens",2,["admin"],2),
+  T("Panel 2026 · Vistas kanban y calendario reutilizables","Extraer el tablero y añadir vista de calendario como componentes del sistema, con teclado, estados y filtros comunes al resto del panel",3,["admin"],2),
+  T("Panel 2026 · Catálogo de gráficos","Línea, área, barras, donut, heatmap, gauge y sparkline sobre un contenedor estándar con título, selector de rango, leyenda y exportación. Sin tartas de muchas categorías ni 3D; el color nunca es el único codificador",3,["admin","crítico"],2),
+  T("Panel 2026 · Formularios completos","Label siempre asociado, texto de ayuda, error en línea y estados (foco, deshabilitado, solo lectura, inválido). Todos los tipos de input, textarea, select con búsqueda, multiselect, checkbox, radio, switch, range, selector de fecha y rango con presets, subida por arrastrar y soltar, grupo de campos, fieldset+legend y asistente multi-paso",4,["admin","crítico"],2),
+  T("Panel 2026 · Sistema de botones","Primario, secundario, contorno, fantasma, peligro y enlace; tamaños, con icono, solo icono con aria-label, cargando, deshabilitado, grupo de botones y botón partido",1,["admin"],2),
+  T("Panel 2026 · Overlays accesibles","Modal sobre <dialog> nativo con foco atrapado y devuelto, drawer, dropdown, popover, tooltip y menú contextual; todos cierran con Escape y se anuncian correctamente",3,["admin","crítico"],2),
+  T("Panel 2026 · Estados obligatorios de cada bloque de datos","Carga con esqueleto, vacío con llamada a la acción, error con reintento, sin permisos y datos desactualizados. Alertas en línea, cola de toasts y regiones aria-live; ningún bloque de datos puede quedarse sin sus cinco estados",3,["admin","crítico"],2),
+  T("Panel 2026 · Confianza y estado compartible","Marca de «actualizado hace X», filtros globales persistentes que se aplican a todo el lienzo, estado reflejado en la URL para compartir vistas y exportación a CSV, PNG y PDF",3,["admin","crítico"],2),
+  T("Panel 2026 · Pantallas y variantes de dashboard","Dashboard principal y variantes de analítica, e-commerce y CRM; listado con filtros, detalle, formulario, perfil, ajustes con pestañas, notificaciones, kanban, calendario, chat interno, precios y onboarding, más login/registro/2FA y 403/404/500 con la misma plantilla",4,["admin"],2),
+  T("Panel 2026 · Reglas del lienzo y presupuesto de rendimiento","Verificar en cada pantalla: la pregunta principal se responde sin scroll, máximo 8 widgets por vista, ningún número sin comparativa, color semántico limitado y nunca como único codificador, rejilla de 12 columnas con espaciado de 4px y carga inicial por debajo de 2 s",2,["admin","crítico"],2),
+]},
+
+{n:"Fase 10", title:"Marca y contenido configurables", sub:"Personalizar toda la plataforma sin tocar código", tasks:[
+  T("Modelo de configuración de marca","Nombre, logo claro/oscuro, favicon, color primario, tipografía, datos fiscales y redes sociales",2,["backend","crítico"],2),
+  T("Editor de marca en el admin con previsualización","Subida de logo/icono, selector de color con contraste validado y vista previa en vivo",2,["admin","crítico"],2),
+  T("Propagación de la marca a tienda, admin, emails y PWA","Tokens CSS servidos dinámicamente, manifest e iconos generados y caché invalidada al guardar",2,["frontend","crítico"],2),
+  T("CMS de páginas legales y de contenido","Privacidad, cookies, términos, envíos, devoluciones, aviso legal y páginas libres, por idioma. Estaba marcada como hecha con solo la mitad puesta: la API tenía el CRUD entero y el panel no tenía pantalla, así que las seis páginas obligatorias —que la semilla crea en borrador y con un texto que empieza por «PENDIENTE DE COMPLETAR»— no se podían tocar sin entrar en la base de datos. Ahora se redactan y se publican desde Contenido → Páginas, con un idioma cada vez y un aviso de los que faltan. De paso, guardar purga la caché de la tienda: sin eso, corregir un dato fiscal del aviso legal tardaba hasta una hora en verse",3,["backend","admin","crítico"],2),
+  T("Editor enriquecido con versiones","Editor WYSIWYG, borrador vs. publicado, historial de versiones y programación de publicación",2,["admin"]),
+  T("Gestor de menús y navegación","Sub-barra de la tienda configurable desde el panel: enlaces a páginas, categorías o direcciones, con etiqueta por idioma, ordenables, ocultables y destacables. Se guarda el id de la página o categoría, no la dirección, así que cada visitante recibe el slug de SU idioma y renombrar algo no rompe el menú; lo que se despublica desaparece solo en vez de dar un 404. El pie sigue saliendo de las páginas publicadas. Estaba marcada como hecha cuando la cabecera de la tienda no tenía ni un enlace de navegación: al catálogo solo se llegaba escribiendo en el buscador",1,["admin","frontend"],2),
+  T("Editor de bloques de la home","Reordenar y configurar secciones de la portada sin desarrollo",2,["admin"],2),
+  T("Gestión de idiomas y divisas","Activar idiomas, idioma por defecto y divisas desde el panel. Los tres ajustes (shop.supportedLocales, shop.defaultLocale, shop.defaultCurrency) llevaban en la base de datos desde la semilla y NADIE los leía: la tienda usaba las constantes de routing.ts, así que desactivar un idioma desde el panel no tenía ningún efecto. Ahora: sección de Idiomas y Divisas en Ajustes con validación cruzada al guardar —no se puede quedar sin idiomas ni dejar por defecto uno desactivado—; integración «Tipo de cambio» sobre datos del BCE con su botón de probar; selector de divisa en la cabecera, con la cookie de preferencia y el aviso de que el cobro es en euros; y los precios convertidos en todo lo que es catálogo —fichas, listados, buscador, deseos, carrito, umbral de envío gratis y blog—. El checkout, los pedidos y las facturas se quedan en euros a propósito, que es lo que se cobra, con la equivalencia al lado para que el salto no parezca un cambio de precio. La lista de divisas ya no está escrita en el código: sale del proveedor de tipo de cambio, así que solo se puede activar lo que se puede convertir. Y la raíz redirige al idioma del panel: se negocia con Accept-Language contra los idiomas ACTIVOS, no contra los compilados",2,["backend","admin"],2),
+  T("Ajustes generales de la tienda","Modo mantenimiento, horarios de atención, textos de aviso, umbral de envío gratis y avisos globales",1,["admin"],2),
+  T("Integraciones configurables desde el panel","Pasarelas, correo, traductor y login social se configuran y se prueban desde el admin, con las credenciales cifradas; lo que no está configurado no se carga ni se ofrece. Cada integración enseña además las URLs nuestras que hay que dar de alta en el panel del servicio —IPN de la pasarela, webhook, retorno de OAuth— con botón de copiar: sin ellas las credenciales correctas no sirven de nada y el síntoma aparece lejos",3,["backend","admin","crítico"],2),
+]},
+
+{n:"Fase 11", title:"Marketing, SEO y crecimiento", sub:"Que te encuentren y que vuelvan a comprar", tasks:[
+  T("SEO técnico completo","Metadatos por idioma, canonical, hreflang, sitemap dinámico, robots y Open Graph por producto. Estuvo marcada como hecha con la mitad sin hacer: no existían ni sitemap.xml ni robots.txt —los dos daban 404—, faltaba `metadataBase`, así que canonical y hreflang salían en relativo y Google los ignora, y el catálogo no tenía metadatos de ningún tipo: todas las categorías compartían el título de la tienda. Ahora el sitemap se genera solo con productos, categorías y artículos de los tres idiomas cruzados por identificador —nunca por posición, que emparejaba mal en cuanto un producto no está traducido—, el robots corta la combinatoria de filtros y cada categoría tiene su título, su descripción y su canonical, con `noindex` en los cortes filtrados y paginados",2,["frontend","crítico"],2),
+  T("Datos estructurados Schema.org","Product, Offer, AggregateRating, BreadcrumbList y Organization para rich snippets. De los cinco solo había dos: la ficha prometía estrellas en su propio comentario y no las sacaba porque faltaba `aggregateRating`, con el dato ya disponible en la misma página. Añadidos la valoración media, la marca, la url, el estado del artículo, las migas de pan —que además eran un `span` sin enlace, así que no se podía subir de la ficha a su categoría ni a mano ni rastreando— y Organization + WebSite con caja de búsqueda. Y las imágenes dejan de repetirse: se anunciaban nueve que eran dos",1,["frontend"],2),
+  T("Feed de Google Merchant Center","Feed automático por idioma/país con validación de campos; excluye las categorías +18, que Google Shopping y Meta Ads no admiten. La cuenta de Merchant se conecta desde Integraciones",2,["backend"],2),
+  T("Analítica y eventos de ecommerce","GA4 + Meta Pixel vía server-side tagging, eventos de embudo respetando el consentimiento. Los identificadores se configuran en Integraciones: sin ellos no se carga ningún script de terceros",2,["frontend"],2),
+  T("Google Tag Manager","El contenedor, para poder enchufar píxeles y conversiones desde su panel sin desplegar la tienda. Con el mismo doble cerrojo que GA4 —configurado en el panel y consentido por quien navega— y declarando el estado del consentimiento ANTES de cargar el contenedor, que es lo único que hace que las etiquetas de dentro lo respeten. Sin `<noscript>`: sin JavaScript no hay banner, así que no hay consentimiento que valga. Avisa en el propio panel de que ponerlo a la vez que GA4 duplica cada visita si el contenedor ya trae su etiqueta de Analytics",1,["frontend","admin"],2),
+  T("Canales alternativos para categorías restringidas","SEO propio, email, afiliación y redes que sí admiten producto adulto, dado que Google Ads y Meta lo bloquean",2,["backend"],2),
+  T("Blog / centro de contenidos","Artículos por idioma con categorías, SEO y enlazado a productos",2,["backend","frontend"],2),
+  T("Programa de fidelización o referidos","Puntos o descuentos por referir, con reglas configurables desde el admin",2,["backend"],2),
+  T("Newsletter y segmentación","Alta con doble opt-in, segmentos por comportamiento y sincronización con el proveedor de email marketing que se conecte desde Integraciones",1,["backend"],2),
+  T("Pruebas A/B ligeras","Feature flags para variar textos, precios de envío o layout y medir conversión",1,["frontend"],2),
+]},
+
+{n:"Fase 12", title:"Cumplimiento legal (España y UE)", sub:"Operar tranquilo y sin sustos regulatorios", tasks:[
+  T("Consentimiento de cookies conforme a la AEPD","Rechazar tan fácil como aceptar, granularidad por finalidad y registro auditable",1,["venta","frontend","crítico"],2),
+  T("Derechos RGPD del cliente","Exportar datos, rectificar, eliminar/anonimizar y registro de tratamiento; plazos automatizados",2,["backend","crítico"],2),
+  T("Textos legales obligatorios","Aviso legal, privacidad, cookies, condiciones de venta, envíos y devoluciones, revisados por idioma",1,["admin"],2),
+  T("Derecho de desistimiento 14 días","Formulario de desistimiento, flujo de devolución y plazos de reembolso conforme a ley",2,["venta","backend","frontend"],2),
+  T("Facturación conforme y numeración legal","Series, datos fiscales, rectificativas y conservación; preparado para requisitos Verifactu/SII",3,["backend","crítico"],2),
+  T("Fiscalidad y contabilidad de cobros en cripto","Factura siempre en EUR con la cripto y el tipo de cambio como referencia, registro del valor al cobro, política de conversión inmediata para no mantener saldo y datos listos para el asesor",2,["backend","crítico"],2),
+  T("IVA transfronterizo (OSS/IOSS)","Cálculo por país de destino, umbrales, informe trimestral OSS y gestión de importación",2,["backend","crítico"],2),
+  T("Transparencia de precios y disponibilidad","Precio final con impuestos, plazos reales de entrega y origen del envío bien visibles",1,["venta","frontend"],2),
+  T("Verificación de edad para categorías +18","Marcado de categorías restringidas, muro de edad antes de ver el contenido, exclusión de esos productos de portada y buscador público, y confirmación en el checkout",2,["venta","frontend","crítico"],2),
+  T("Fidelidad de la ficha de producto","La imagen final tras el retoque con IA debe representar el producto que se entrega: control de revisión y aviso legal, ya que exagerarlo es publicidad engañosa según la normativa europea",1,["admin","crítico"],2),
+  T("Retención y anonimización de datos","Políticas automáticas de purgado de datos personales según plazos legales",1,["backend"],2),
+]},
+
+{n:"Fase 13", title:"Seguridad, observabilidad y escalado", sub:"Preparado para picos de tráfico y de pedidos", tasks:[
+  T("Endurecimiento de seguridad de la API","CSP, CORS estricto, sanitización, protección CSRF, cabeceras de seguridad y secretos rotables",2,["backend","crítico"],2),
+  T("Protección antifraude y antibots","Motor de riesgo propio en checkout (velocidad de pedidos, país, importe, dirección), límites por IP/cuenta y captcha invisible conectado desde Integraciones; Radar de Stripe cuando se active esa pasarela",2,["backend"],2),
+  T("Trazas distribuidas con OpenTelemetry","Trazado de petición → cola → proveedor, con correlación de IDs de pedido",2,["infra","crítico"],2),
+  T("Métricas y dashboards operativos","Prometheus/Grafana: latencia, tasa de error, profundidad de colas, throughput de pedidos",2,["infra"],2),
+  T("Alertas y on-call","Alertas por cola atascada, fallos de pago, caída de proveedor y errores 5xx sostenidos",1,["infra","crítico"],2),
+  T("Sentry en API, worker, tienda y admin","Source maps, releases, agrupación de errores y alertas por regresión",1,["infra"],2),
+  T("Estrategia de caché","Caché HTTP/CDN, ISR de páginas, caché de catálogo en Redis e invalidación por evento",2,["backend","crítico"],2),
+  T("Escalado horizontal y aislamiento de workers","Autoescalado por profundidad de cola, réplicas de lectura de Postgres y pooling de conexiones",2,["infra","crítico"],2),
+  T("Copias de seguridad y recuperación","Backups automáticos con PITR, prueba real de restauración y plan de recuperación documentado",1,["infra","crítico"],2),
+  T("Pruebas de carga y plan de capacidad","Escenarios de pico (campañas, Black Friday) y dimensionamiento de infraestructura",2,["infra"],2),
+  T("La ficha pública deja de publicar coste y margen","La ficha de la tienda devolvía el mismo objeto que el panel: coste en el proveedor, margen calculado, nombre del proveedor e identificador del producto allí. Se leía con un curl en producción. Ahora se proyecta por lista blanca, para que añadir una columna al modelo no la publique sola",1,["backend","crítico"],2),
+]},
+
+{n:"Fase 14", title:"Calidad y pruebas", sub:"Que nada se rompa en producción", tasks:[
+  T("Tests unitarios del dominio","Precios, impuestos, promociones, transiciones de estado y reglas de proveedor con Vitest",3,["backend","crítico"],2),
+  T("Tests de integración de la API","Base de datos efímera con Testcontainers, cobertura de endpoints críticos y webhooks",3,["backend","crítico"],2),
+  T("Contract tests de los adaptadores de proveedor","Mocks grabados de la API real para detectar cambios que rompan la integración",2,["backend"],2),
+  T("E2E del flujo de compra con Playwright","Navegar, añadir al carrito y pagar en el sandbox de NOWPayments verificando el pedido; casos de pago parcial, caducado y confirmación tardía",3,["frontend","crítico"],2),
+  T("E2E de los flujos críticos del admin","Importar producto, gestionar pedido, reembolsar y cambiar marca",2,["admin"],2),
+  T("Tests de regresión visual y accesibilidad","Snapshots de componentes en claro/oscuro y auditoría axe automatizada",2,["frontend"],2),
+  T("Cobertura y quality gates en CI","Umbral mínimo, bloqueo de merge si falla y ejecución de E2E en preview deploy",1,["infra"],2),
+  T("Las pruebas levantan el MISMO servidor que producción","El entorno de integración creaba el adaptador de Fastify vacío, sin las opciones de `main.ts`. Por eso ninguna prueba reprodujo el 414 de los slugs largos: el límite de 100 caracteres por parámetro existía en el servidor real y no en las pruebas. Ahora comparten un único objeto de opciones, con el límite subido a 512 —el importador genera slugs de hasta 110—",1,["backend"],2),
+]},
+
+{n:"Fase 15", title:"Despliegue y puesta en producción", sub:"Del entorno local al primer pedido real", tasks:[
+  T("Infraestructura en VPS propio","Docker Compose en producción con Traefik como proxy y SSL automático, Postgres y Redis autoalojados con backups, MinIO o R2 para objetos y CDN por delante",3,["despliegue","infra","crítico"],2),
+  T("Endurecimiento del servidor","Firewall, fail2ban, SSH solo por clave, usuario sin privilegios, actualizaciones automáticas de seguridad y monitorización de recursos del VPS",1,["despliegue","infra","crítico"],2),
+  T("Pipeline de despliegue continuo","Deploy automático por entorno vía GitHub Actions al VPS, migraciones seguras, rollback y despliegues sin caída",2,["infra","crítico"],2),
+  T("Entorno de staging con datos realistas","Réplica de producción anonimizada para validar cambios antes de publicar",1,["infra"]),
+  T("Dominios, DNS, SSL y correo","Dominio, certificados, SPF/DKIM/DMARC para que los emails no caigan en spam",1,["despliegue","infra"],2),
+  T("Configuración real de pasarelas y proveedor","Cuenta de producción de NOWPayments con wallets y política de conversión, después Revolut/Stripe/PayPal, y credenciales reales de AliExpress. Todo desde el panel —sin tocar el servidor— probando cada integración antes del pedido de prueba con pago real de importe mínimo",2,["despliegue","infra","crítico"]),
+  T("Checklist de go-live","Legales revisados, backups activos, alertas configuradas, SEO validado y pedido de prueba end-to-end",1,["despliegue","infra","crítico"]),
+  T("Manual de operación del negocio","Cómo gestionar pedidos, incidencias, devoluciones y proveedores; formación del equipo",2,["infra"]),
+  T("Margen medido sobre la base imponible","El precio de escaparate lleva el IVA dentro y no es ingreso: contarlo inflaba todos los márgenes unos 15 puntos y puso el catálogo entero a vender al 9-14% creyendo tener un 26%. Motor de precios, sincronización, ficha, listado, pedido y kanban",2,["backend","crítico"],2),
+  T("Guardián de divisa del proveedor","Comprobar que AliExpress devuelve euros y no otra moneda antes de guardar un coste: un precio en dólares leído como euros es un 8% de margen que no existe y no se detecta después",1,["backend","crítico"],2),
+  T("Pantalla de márgenes en el panel","Qué se está vendiendo por debajo del margen objetivo o directamente a pérdida, con el ingreso sin IVA al lado del coste real del proveedor",1,["admin","crítico"],2),
+  T("Coste de compra completo: recargo y cargo fijo de importación","Lo que el proveedor cobra en su carrito y su API no menciona —cargos de importación porcentuales— más la tasa fija por categoría de las importaciones de bajo valor. Configurable por proveedor y contado en el PVP, en el margen y en los informes",2,["backend","admin","crítico"],2),
+  T("Seguimiento de envíos: conectar la cola que faltaba","`TrackingService` estaba escrito y probado pero ninguna cola lo llamaba: los trabajos entraban en `tracking`, se daban por completados sin hacer nada y los pedidos se quedaban con el estado del día de la compra. Procesador, repaso periódico y consulta inmediata al comprar",2,["backend","crítico"],2),
+  T("Preguntar al transportista, no solo al proveedor","El seguimiento solo se le pedía al proveedor, así que los pedidos de Dreamlove —que no tiene API— y cualquier número anotado a mano no se actualizaban NUNCA: el pedido se quedaba en «enviado al proveedor» mientras el paquete llegaba o se perdía. Ahora, cuando el proveedor no puede contarlo, se consulta por el número del transportista y el pedido pasa solo a «en tránsito» y a «entregado»; una entrega fallida o una retención en aduana entran en la cola de revisión en vez de pasar desapercibidas. Se usa un agregador (17TRACK, un API para Nacex, SEUR, Correos Express y dos mil más) porque las APIs propias de esos transportistas exigen contrato y solo responden por los envíos que factures tú, y en dropshipping los factura el proveedor. De paso, los enlaces de seguimiento: el de Correos Express llevaba a un 503 desde que cambiaron de dominio y el de Nacex a una página en blanco —su buscador va por POST y no admite enlace—, los dos en el correo de «tu pedido va en camino»",2,["venta","backend","crítico"],2),
+  T("Las integraciones de analítica no se veían en el panel","GA4 y el píxel de Meta estaban implementados desde la fase 11, pero la pantalla de integraciones lleva una lista fija de familias y la suya no estaba: no había ningún sitio donde pegar el identificador de medición, así que la analítica no se podía activar. Con ella se coló también la familia nueva de seguimiento",1,["admin"],2),
+  T("Estado del proveedor visible en el pedido","Guardar y enseñar el estado tal y como lo llama el proveedor, que se mueve varias veces mientras el nuestro sigue en «enviado al proveedor». Con anotación en la cronología solo cuando cambia",1,["backend","admin"],2),
+  T("Errores de AliExpress que no parecían errores","`rsp_code` —sin la «e»— se leía como respuesta vacía y convertía un 401 en «pedido no encontrado»; al seguimiento le faltaba el parámetro `language`, obligatorio; y `MissingParameter` se traducía como problema de permisos, mandando a buscar el fallo donde no estaba",1,["backend","crítico"],2),
+  T("Las copias de seguridad no se hacían","El guion buscaba el .env un nivel por encima —correcto en el repositorio, equivocado en el servidor— y decidía usar el cliente del host por si existe `pg_dump`, cuando la base corre en Docker sin puerto publicado. El cron fallaba cada noche escribiendo el error en un log que nadie abre: la tienda llevaba desde el primer día sin una sola copia",1,["infra","crítico"],2),
+  T("El .env de producción se pone al día solo al desplegar","`generar-env.sh` solo corre la primera vez, así que cada variable nueva había que añadirla a mano y nadie se acordaba: el contenedor arranca igual y la funcionalidad no va, sin error ni aviso. `asegurar-env.sh` añade lo que falte antes de las migraciones, no toca nunca lo que ya hay —regenerar secretos dejaría ilegibles las credenciales cifradas— y para el despliegue si falta un secreto crítico en vez de inventarlo",1,["infra","crítico"],2),
+  T("Puerta de edad en la entrada de la tienda","Con el catálogo entero marcado +18, la portada salía vacía y el buscador no encontraba nada, y no había forma de verificarse porque la única puerta estaba en una ficha a la que no llegaba ningún enlace. Puerta en el middleware, con las páginas legales, el seguimiento de pedido y las bajas de correo fuera",2,["frontend","crítico"],2),
+  T("Cookie de edad compartida entre la tienda y la API","La ponía la API en su subdominio, así que la tienda no la veía al renderizar en servidor: se verificaba la edad y la puerta reaparecía en la página siguiente, indefinidamente",1,["backend","crítico"],2),
+  T("Catálogo +18 visible para quien ya verificó","Portada, sugerencias del buscador y lista de deseos tenían el filtro fijo a «sin adultos» y escondían el catálogo incluso a quien había declarado su edad; y la tienda ni siquiera reenviaba la cookie al buscar",2,["backend","frontend"],2),
+  T("Conciliar el coste real del proveedor","Guardar lo que AliExpress cobra de verdad al consultar el pedido, no lo que se esperaba pagar, y marcar para revisión si ha subido",1,["backend"],2),
+  T("Interruptor para no tocar los precios ya puestos","La importación masiva pisaba el precio de todo lo que ya existía sin preguntar, así que no había forma de arreglar categorías, marcas o existencias sin llevarse por delante los precios de la tienda entera. Un interruptor en el propio importador lo decide por pasada, y el informe dice cuántos se han respetado para que se vea que ha hecho caso",1,["admin","backend"],2),
+  T("El PVP es el del proveedor, sin corregirlo por margen","Cuando el proveedor publica PVP recomendado, ese es el precio: es al que vende el resto del sector y competir con él por precio es competir contra su propio catálogo. Se quita el suelo que subía al margen mínimo —que sacaba artículos de mercado por una cuenta que nadie había pedido— y en su lugar se cuenta y se avisa de cuáles quedan por debajo. Vale en la importación de uno en uno, en la masiva, en la previsualización y en la sincronización, que era la que volvía a repreciar por margen cada noche",1,["venta","backend","crítico"],2),
+  T("Lo agotado, al final de todos los listados","Un producto sin stock ocupando la primera fila es un cliente que se va: manda a la ficha, encuentra el botón apagado y no vuelve. Orden por disponibilidad en el buscador, los listados de categoría, la portada, la lista de deseos y el blog, respetando después el orden que ya hubiera. Y de paso el filtro por categoría, que no se aplicaba: el menú enlazaba con el slug y el listado solo reenviaba el id, así que entrar en una categoría enseñaba el catálogo entero",2,["venta","backend","frontend","crítico"],2),
+  T("Importación masiva del catálogo del proveedor","Un botón que crea o actualiza de una vez todas las familias del catálogo de Dreamlove, cada una en su categoría y con su marca, poniendo como precio el PVPR que manda el proveedor y el margen mínimo como suelo. Sin esto había que importar producto a producto: la tienda no se llena nunca y el catálogo entra sin categoría. Con progreso en vivo, cancelación y recuento de lo creado, lo actualizado y lo que no cuadra",2,["backend","admin","crítico"],2),
+]},
+
+{n:"Fase 16", title:"Evolución post-lanzamiento", sub:"Mejoras que se abordan cuando la base ya factura", tasks:[
+  T("Recomendaciones personalizadas","Productos relacionados y 'también compraron' basados en comportamiento real",2,["backend"]),
+  T("Multi-almacén y proveedor local","Combinar dropshipping con stock propio o proveedores europeos para plazos cortos",3,["backend"]),
+  T("Marketplace multivendedor (opcional)","Terceros vendiendo en la plataforma con comisiones y liquidaciones",5,["backend"]),
+  T("App móvil con React Native / Expo","Reutilizando la API y el design system existentes",5,["frontend"]),
+  T("Atención al cliente con IA","Asistente que responde sobre pedidos y productos con acceso controlado a la API",3,["backend"]),
+  T("Optimización continua de conversión","Iteración sobre el embudo con datos: checkout, ficha de producto y velocidad",2,["frontend"]),
+]},
+
+{n:"Fase 17", title:"Studio · editor de creatividades", sub:"Fabricar el material de marketing dentro de la plataforma. Ver STUDIO.md", tasks:[
+  T("Catálogo de formatos de anuncio","Tamaños, pesos máximos, tipos de archivo y límites de texto de ExoClick, las demás redes adultas, redes sociales y los huecos propios de la tienda. Declarativo como el catálogo de integraciones, con fecha de revisión porque estas cifras caducan",1,["backend"],2),
+  T("Esquema del documento de creatividad","Mesas de trabajo, capas, estilos, componentes, animación y variables en Zod compartido: lo valida la API, lo pinta el editor y lo pinta el renderizador. Geometría relativa con anclajes para que una pieza salga en varios tamaños",2,["backend","crítico"],2),
+  T("Modelo de datos del Studio","Campañas, creatividades, versiones, renders, activos con procedencia, plantillas, componentes, generaciones de IA y gasto por campaña",2,["backend"],2),
+  T("Permisos del Studio y rol Creativo","studio:read, studio:write y studio:publish, y un rol que entra al Studio y a nada más: es el que se le da a alguien de fuera sin tener que darle admin",1,["backend"],2),
+  T("API de campañas y creatividades","CRUD, versionado del documento con control de concurrencia optimista, estados con aprobación humana y auditoría de lo que importa",2,["backend"],2),
+  T("Armazón del Studio en el admin","Layout propio sin barra lateral ni cabecera del panel, rutas /studio/*, botón de ida y vuelta, carga perezosa para no engordar el arranque del panel",2,["admin","crítico"],2),
+  T("Editor: lienzo, capas y propiedades","Formas, texto, imagen y vector con relleno, degradado, trazo, sombra, opacidad y máscara; árbol de capas con grupos, bloqueo y visibilidad",3,["admin","crítico"],2),
+  T("Motor de dibujo en HTML y CSS","Las capas son componentes HTML con CSS real —flexbox, object-fit, clip-path— y no SVG: SVG no tiene motor de maquetación y el corte de línea había que escribirlo a mano. La exportación se mantiene en el navegador envolviendo el marcado en un foreignObject. El documento no se entera: no lleva ni una línea de HTML",2,["admin","crítico"],2),
+  T("Importar HTML y convertirlo en capas","Subir un fichero o pegar marcado y que salga descompuesto en capas editables: se pinta en un marco aislado y se le pregunta al navegador dónde ha puesto cada cosa, en vez de deducir la maquetación leyendo el CSS. Conserva tipografía, colores y degradados —lineales y radiales, con sus paradas—, y avisa de lo que no sabe traducir. Con la alternativa de traerlo de una pieza como bloque para lo que no interesa despiezar",3,["admin"],2),
+  T("Saneado del marcado importado","Quitar scripts, manejadores de eventos, javascript:, marcos y el foreignObject de los SVG. En el servidor al guardar, no en el navegador al importar: esto se pinta en el mismo origen que la sesión con todos los permisos",1,["backend","crítico"],2),
+  T("Editor: precisión y teclado","Reglas, guías, rejilla, ajuste magnético con distancias en pantalla, alinear y distribuir, valores numéricos y atajos de teclado. Diseñar solo con el ratón se nota a la décima creatividad",2,["admin"],1),
+  T("Editor: texto con ajuste automático","Tipografías del kit de marca, contorno y sombra, y encogido para caber: el mismo titular en inglés se sale de un 300×100 y en un lote de treinta nadie lo revisa",2,["admin"],1),
+  T("Editor: imágenes, recorte y encuadre","Recorte dentro del marco reutilizando el recortador del panel, escala, esquinas, brillo, contraste, saturación y desenfoque",1,["admin"]),
+  T("Historial de deshacer y versiones","Deshacer y rehacer con historial largo, versiones con nombre en los hitos y comparación antes/después",1,["admin"],1),
+  T("Biblioteca de activos","Subidas, imágenes del catálogo y generadas, cada una con su procedencia: de dónde salió, con qué modelo y con qué prompt. Sirve para saber qué se puede usar comercialmente",2,["admin"],2),
+  T("Exportación estática en el navegador","PNG, JPG y WebP con canvas, sin infraestructura nueva: el primer banner sale el día uno",1,["admin"],2),
+  T("Enlace marcado por creatividad","utm_content con el identificador de la creatividad, para que el informe de canales diga qué banner concreto trajo las ventas y no solo qué red",1,["backend"],2),
+  T("Mesas de trabajo y capas enlazadas","Lienzo infinito con una mesa por formato, todas visibles a la vez; capas enlazadas a la mesa maestra y desenlazables una a una para los saltos que ninguna regla salva",3,["admin","crítico"]),
+  T("Estilos compartidos y componentes","Estilos de color y texto que cambian en todas las mesas a la vez, y componentes con instancias: el sello de descuento o la franja +18 se definen una vez",2,["admin"]),
+  T("Bloque de producto atado al catálogo","Foto, nombre, precio y descuento salen de la base de datos: de una plantilla salen treinta banners y ninguno puede anunciar un precio que no existe",2,["admin"]),
+  T("Plantillas de creatividad","Documentos con huecos reutilizables en otra campaña u otro producto",1,["admin"]),
+  T("Animación con presets y línea de tiempo","Fotogramas clave por propiedad y animaciones preparadas (entrada, latido, zoom lento, tres escenas), con los límites de duración y bucles del formato avisando mientras se edita",3,["admin"]),
+  T("Contenedor de renderizado","Chromium sin ventana y ffmpeg aparte de la imagen de la API, movido por la cola que ya existe. El mismo renderizador que el editor: dos implementaciones divergen y el banner sale distinto al exportarlo",3,["infra","crítico"]),
+  T("Exportación a GIF y MP4 dentro del peso","150 KB con animación es poquísimo: reducción de paleta y recorte de fotogramas iterando contra el objetivo, y sugerir MP4 cuando no entra",2,["backend"]),
+  T("Validador de formato antes de exportar","Dimensiones, peso, duración, longitud de los textos, contraste mínimo y reglas de contenido de cada red. Un archivo rechazado es un día perdido en su cola de revisión",2,["backend","crítico"]),
+  T("Exportación en lote por formato e idioma","Todos los tamaños y los tres idiomas de una tacada, en cola, sin depender de que no se cierre la pestaña",1,["backend"]),
+  T("Gasto por campaña y ranking de creatividades","Lo que costó al lado de lo que vendió, con las creatividades ordenadas por ventas atribuidas. Sin esto, probar creatividades es tirar los dados",2,["backend"]),
+]},
+
+{n:"Fase 18", title:"Studio · IA y compra de medios", sub:"El ayudante opcional y el círculo cerrado con la red de anuncios", tasks:[
+  T("Conversación con contexto de campaña","El asistente recibe campaña, formato con sus límites, kit de marca, productos seleccionados con sus reseñas y las creatividades que más vendieron. Apagable entera: sin integración configurada el panel ni aparece",3,["backend"]),
+  T("Textos con límite de caracteres y tono","Titular, subtítulo y llamada a la acción que caben en el formato y suenan a la marca, en los tres idiomas",1,["backend"]),
+  T("Generación y edición de imagen sobre ComfyUI","Comparte GPU, cola e integración con el estudio de imágenes de producto de la fase 4: los servicios gestionados rechazan este catálogo",3,["backend"]),
+  T("Partir de otra pieza","Cuatro modos: remezcla con otro producto, referencia de estilo, imagen a imagen, y variantes de la creatividad que más vendió",2,["backend"]),
+  T("Cola de aprobación y control de coste","Ninguna creatividad generada se publica sin visto bueno; cada generación guarda modelo, parámetros y coste, con tope mensual que corta y avisa",2,["admin"]),
+  T("Piezas de captación y mini-landings","Ventanas y barras de captación para la tienda con sus reglas de aparición, y landings de campaña: el tráfico pagado convierte peor si aterriza en una ficha de producto",3,["frontend"]),
+  T("Plantillas de correo con bloques de catálogo","HTML de tablas con estilos en línea, no una imagen grande: eso acaba en spam y no se ve con las imágenes desactivadas",2,["backend"]),
+  T("Publicación en los bloques de la tienda","Lo diseñado en el Studio va directo a la portada y a los banners de categoría, sin exportar ni volver a subir",1,["admin"]),
+  T("API de la red de anuncios","Subir creatividades, ajustar pujas y traerse las estadísticas de ExoClick al mismo sitio donde están las ventas. Necesita cuenta de anunciante con presupuesto",3,["backend"]),
+]},
+];
+
+const TAGMAP = {backend:["be","Backend"],frontend:["fe","Tienda"],admin:["ad","Admin"],infra:["in","Infra"],"crítico":["cr","Crítico"],venta:["vt","1ª VENTA"],despliegue:["dp","DESPLIEGUE"]};
+const KEY = "ecom-roadmap-v2";
+// La clave de cada tarea es su texto, no su posición: reordenar o insertar fases no pierde el progreso.
+const keyOf = (p,t) => p.title + "|" + t.t;
+let state = JSON.parse(localStorage.getItem(KEY) || "{}");
+let filter = "all", query = "";
+
+const el = document.getElementById("phases");
+
+function render(){
+  el.innerHTML = PHASES.map((p,pi)=>{
+    const tasks = p.tasks.map(t=>{
+      const id = keyOf(p,t), s = state[id] ?? t.s;
+      const tags = (t.tags||[]).map(x=>`<span class="tag ${TAGMAP[x]?TAGMAP[x][0]:''}">${TAGMAP[x]?TAGMAP[x][1]:x}</span>`).join("");
+      return `<div class="task" data-id="${id.replace(/"/g,'')}" data-p="${pi}" data-s="${s}" data-txt="${(t.t+" "+t.d).toLowerCase().replace(/"/g,'')}">
+        <div class="box">${s===2?"✓":s===1?"•":""}</div>
+        <div class="t-body"><div class="t-title">${t.t}</div><div class="t-desc">${t.d}</div><div class="t-tags">${tags}</div></div>
+        <div class="t-est">${t.e}d</div>
+      </div>`;
+    }).join("");
+    const done = p.tasks.filter(t=>(state[keyOf(p,t)] ?? t.s)===2).length;
+    const pct = Math.round(done/p.tasks.length*100);
+    const days = p.tasks.reduce((a,t)=>a+t.e,0);
+    return `<div class="phase ${pct===100?'done':''}" open-state="0" data-p="${pi}">
+      <div class="ph-head">
+        <div class="ph-num">${pi}</div>
+        <div class="ph-title"><h3>${p.title}</h3><p>${p.sub} · ${p.tasks.length} tareas · ~${days} días</p></div>
+        <div class="ph-meta">
+          <div class="ph-bar bar"><i style="width:${pct}%"></i></div>
+          <div class="ph-pct">${pct}%</div>
+          <div class="caret">▶</div>
+        </div>
+      </div>
+      <div class="tasks">${tasks}</div>
+    </div>`;
+  }).join("");
+  applyFilter();
+  stats();
+}
+
+function stats(){
+  let done=0,prog=0,total=0,daysLeft=0,phasesDone=0;
+  PHASES.forEach(p=>{
+    let d=0;
+    p.tasks.forEach(t=>{
+      const s=state[keyOf(p,t)] ?? t.s; total++;
+      if(s===2){done++;d++} else {daysLeft+=t.e; if(s===1)prog++}
+    });
+    if(d===p.tasks.length) phasesDone++;
+  });
+  const pct = total?Math.round(done/total*100):0;
+  document.getElementById("k-done").textContent=done;
+  document.getElementById("k-total").textContent=total;
+  document.getElementById("k-days").textContent=daysLeft;
+  document.getElementById("k-phases").textContent=phasesDone+"/"+PHASES.length;
+  document.getElementById("k-pct").textContent=pct+"%";
+  document.getElementById("g-done").style.width=(done/total*100)+"%";
+  document.getElementById("g-prog").style.width=(prog/total*100)+"%";
+  document.getElementById("l-done").textContent=done;
+  document.getElementById("l-prog").textContent=prog;
+  document.getElementById("l-todo").textContent=total-done-prog;
+
+  // Ruta de primera venta: solo las tareas etiquetadas, con su propia barra.
+  // Va aparte del global a propósito: el porcentaje global sube con trabajo que
+  // no acerca el lanzamiento, y mezclarlos esconde justo lo que hay que mirar.
+  let vDone=0,vProg=0,vTotal=0,vDays=0;
+  PHASES.forEach(p=>p.tasks.forEach(t=>{
+    if(!(t.tags||[]).includes("venta")) return;
+    const s=state[keyOf(p,t)] ?? t.s; vTotal++;
+    if(s===2) vDone++; else { vDays+=t.e; if(s===1) vProg++; }
+  }));
+  document.getElementById("v-pct").textContent=(vTotal?Math.round(vDone/vTotal*100):0)+"%";
+  document.getElementById("v-done").style.width=(vTotal?vDone/vTotal*100:0)+"%";
+  document.getElementById("v-prog").style.width=(vTotal?vProg/vTotal*100:0)+"%";
+  document.getElementById("v-resumen").textContent=
+    vDone+" de "+vTotal+" tareas · quedan ~"+vDays+" días/dev.";
+
+  // Primer despliegue: mismo cálculo, su propia etiqueta.
+  let dDone=0,dProg=0,dTotal=0,dDays=0;
+  PHASES.forEach(p=>p.tasks.forEach(t=>{
+    if(!(t.tags||[]).includes("despliegue")) return;
+    const s=state[keyOf(p,t)] ?? t.s; dTotal++;
+    if(s===2) dDone++; else { dDays+=t.e; if(s===1) dProg++; }
+  }));
+  document.getElementById("d-pct").textContent=(dTotal?Math.round(dDone/dTotal*100):0)+"%";
+  document.getElementById("d-done").style.width=(dTotal?dDone/dTotal*100:0)+"%";
+  document.getElementById("d-prog").style.width=(dTotal?dProg/dTotal*100:0)+"%";
+  document.getElementById("d-resumen").textContent=
+    dDone+" de "+dTotal+" tareas · quedan ~"+dDays+" días/dev.";
+}
+
+function applyFilter(){
+  document.querySelectorAll(".phase").forEach(ph=>{
+    let visible=0;
+    ph.querySelectorAll(".task").forEach(t=>{
+      const okS = filter==="all" || t.dataset.s===filter;
+      const okQ = !query || t.dataset.txt.includes(query);
+      const show = okS&&okQ;
+      t.classList.toggle("hidden",!show);
+      if(show) visible++;
+    });
+    ph.style.display = (visible===0 && (filter!=="all"||query)) ? "none":"";
+    if((filter!=="all"||query) && visible>0) ph.setAttribute("open-state","1");
+  });
+}
+
+el.addEventListener("click", e=>{
+  const task = e.target.closest(".task");
+  if(task){
+    const id=task.dataset.id, pi=task.dataset.p;
+    state[id]=((state[id]||0)+1)%3;
+    localStorage.setItem(KEY,JSON.stringify(state));
+    render();
+    const ph = el.querySelector(`.phase[data-p="${pi}"]`);
+    if(ph) ph.setAttribute("open-state","1");
+    return;
+  }
+  const head = e.target.closest(".ph-head");
+  if(head){
+    const ph=head.parentElement;
+    ph.setAttribute("open-state", ph.getAttribute("open-state")==="1"?"0":"1");
+  }
+});
+
+document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));
+  c.setAttribute("aria-pressed","true");
+  filter=c.dataset.f; applyFilter();
+}));
+document.getElementById("q").addEventListener("input",e=>{query=e.target.value.toLowerCase().trim();applyFilter()});
+document.getElementById("expand").addEventListener("click",()=>{
+  const anyClosed=[...document.querySelectorAll(".phase")].some(p=>p.getAttribute("open-state")==="0");
+  document.querySelectorAll(".phase").forEach(p=>p.setAttribute("open-state",anyClosed?"1":"0"));
+});
+document.getElementById("reset").addEventListener("click",()=>{
+  if(confirm("¿Descartar tus cambios manuales y volver al estado real del desarrollo?")){state={};localStorage.removeItem(KEY);render()}
+});
+const themeBtn=document.getElementById("theme");
+function setTheme(t){document.documentElement.dataset.theme=t;themeBtn.textContent=t==="dark"?"☀️":"🌙";localStorage.setItem(KEY+"-theme",t)}
+setTheme(localStorage.getItem(KEY+"-theme") || (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
+themeBtn.addEventListener("click",()=>setTheme(document.documentElement.dataset.theme==="dark"?"light":"dark"));
+
+render();
+</script>
+</body>
+</html>

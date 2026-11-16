@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sin conexión</title>
+    <!--
+      Página de cortesía cuando no hay red y no hay copia guardada.
+
+      Sin dependencias a propósito: los estilos van dentro y no usa JavaScript.
+      Cualquier fichero externo que necesitara habría que ir a buscarlo a la
+      red, que es justo lo que no hay.
+
+      No está traducida por el mismo motivo: los textos viven en la API. Se
+      queda en el idioma de la tienda, y el mensaje es corto para que se
+      entienda igual.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fondo: #ffffff;
+        --texto: #0f172a;
+        --suave: #475569;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fondo: #0b0f17;
+          --texto: #f1f5f9;
+          --suave: #cbd5e1;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        background: var(--fondo);
+        color: var(--texto);
+        font: 400 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.5rem;
+      }
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--suave);
+      }
+      button {
+        font: inherit;
+        padding: 0.7rem 1.25rem;
+        border: 1px solid currentColor;
+        border-radius: 0.625rem;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sin conexión</h1>
+      <p>
+        No hemos podido cargar esta página. Comprueba tu conexión e inténtalo de nuevo:
+        tu carrito sigue guardado.
+      </p>
+      <button type="button" onclick="location.reload()">Reintentar</button>
+    </main>
+  </body>
+</html>

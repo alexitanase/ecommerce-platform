@@ -1,0 +1,47 @@
+global:
+  # Cada 15 s: suficiente para ver un pico de checkout sin generar un volumen
+  # de datos que obligue a dimensionar el almacenamiento por la monitorización.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    entorno: desarrollo
+
+rule_files:
+  - /etc/prometheus/alertas.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: api
+    metrics_path: /metrics
+    # El token va aquí y no en la URL: en la URL acabaría en los logs de acceso
+    # de cualquier proxy por el que pase.
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ['host.docker.internal:3001']
+        labels:
+          servicio: api
+
+  # Cuando el worker se separe de la API (fase 15, aislamiento de workers)
+  # se raspa aparte para distinguir si la latencia viene de atender peticiones
+  # o de consumir colas. Hoy corre dentro del proceso de la API, y dejar el
+  # objetivo activo lo pintaría siempre en rojo: un panel con un rojo
+  # permanente enseña al equipo a ignorar los rojos.
+  # - job_name: worker
+  #   metrics_path: /metrics
+  #   authorization:
+  #     type: Bearer
+  #     credentials_file: /etc/prometheus/metrics_token
+  #   static_configs:
+  #     - targets: ['host.docker.internal:3002']
+  #       labels:
+  #         servicio: worker
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

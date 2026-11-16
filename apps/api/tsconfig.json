@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    // La raíz incluye `test/`, así que no puede ser `src`. Lo que se compila de
+    // verdad lo decide `tsconfig.build.json`, que sí fija `src` como raíz para
+    // que el resultado siga siendo `dist/main.js`.
+    "rootDir": ".",
+    "noEmit": true,
+    "baseUrl": ".",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  // Las pruebas y la configuración de Vitest entran aquí a propósito: si se
+  // quedaran fuera, ni `tsc` ni ESLint las mirarían, y el andamiaje de las
+  // pruebas —que también es código, y del que dependen todas ellas— sería lo
+  // único del proyecto sin revisar.
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts", "vitest.integracion.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

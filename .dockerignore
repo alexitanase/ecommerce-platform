@@ -1,0 +1,44 @@
+# Lo que NO entra en el contexto de build.
+#
+# No es solo por tamaño: `node_modules` copiado desde el host trae binarios
+# compilados para esta máquina (argon2 y sharp son nativos), y dentro de la
+# imagen fallarían en tiempo de ejecución con un error de arquitectura que no
+# dice de dónde viene. Se instalan siempre dentro del contenedor.
+
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/generated
+**/*.tsbuildinfo
+
+# Secretos: el .env real jamás viaja a una imagen. Las variables entran por el
+# entorno del contenedor en tiempo de ejecución.
+.env
+.env.*
+!.env.example
+!.env.produccion.example
+**/*.local.md
+
+.git
+.github
+.vscode
+.idea
+
+# Artefactos de pruebas y capturas
+apps/e2e
+**/playwright-report
+**/test-results
+**/coverage
+**/.vitest-reports
+copias
+
+# Documentación y material que no participa en el build
+*.md
+!README.md
+docs
+infra/carga
+"API Reference - AliExpress Open Platform.html"
+API Reference - AliExpress Open Platform_files
+ROADMAP.html

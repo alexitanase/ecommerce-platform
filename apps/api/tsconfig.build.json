@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Lo que se despliega sale solo de `src`, para que el punto de entrada siga
+    // siendo `dist/main.js` y no `dist/src/main.js`.
+    "rootDir": "./src",
+    "noEmit": false
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts",
+    "vitest.config.ts",
+    "vitest.integracion.config.ts"
+  ]
+}

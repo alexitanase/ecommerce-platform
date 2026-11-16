@@ -1,0 +1,85 @@
+# dependencias
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Cliente de Prisma generado (6,5 MB en 87 ficheros).
+#
+# Es salida de compilación, no código: lo produce `prisma generate` a partir de
+# schema.prisma, y ya lo regeneran tanto el CI (`pnpm db:generate` antes del
+# build) como la imagen de Docker (`pnpm --filter @ecom/api... build`, que
+# encadena el build de @ecom/db).
+#
+# Versionarlo tiene un coste concreto: cada cambio en el esquema —añadir una
+# columna— produce un diff de miles de líneas que entierra el cambio real y
+# hace ilegible cualquier revisión. Por eso `.prettierignore` ya lo excluía.
+packages/db/src/generated/
+
+# turbo
+.turbo/
+
+# entorno — nunca subir secretos
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# credenciales y notas locales
+CREDENCIALES.local.md
+*.local.md
+credenciales*.txt
+secretos*
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# tests
+coverage/
+playwright-report/
+test-results/
+# Las capturas de referencia SÍ se versionan: son el contrato visual. Lo que
+# no se guarda son las que genera un fallo, que van en test-results/.
+# informes en bruto que se fusionan para medir la cobertura de la API
+.vitest-reports/
+
+# datos locales de docker
+docker/data/
+
+# editores / SO
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# token de raspado de Prometheus (el .example sí se versiona)
+infra/observabilidad/metrics_token
+
+# catálogos que mandan los proveedores: son ficheros enormes (el de Dreamlove
+# pasa de 340 MB) que cambian a diario y cuya copia buena vive en la base de
+# datos, no aquí. Versionarlos infla el repositorio sin aportar historia útil.
+providers/*.xml
+providers/*.xml.gz
+providers/*.csv
+
+# copias de seguridad: contienen datos personales de clientes reales
+copias/
+*.dump
+*.dump.sha256
+
+# Informes y artefactos de las pruebas de extremo a extremo
+apps/e2e/playwright-report/
+apps/e2e/test-results/
+# Directorios de resultados con fecha que deja Playwright cuando se le cambia
+# la configuración: son basura de una ejecución concreta, no del proyecto.
+apps/e2e/.test-results-*/
+# La sesión que prepara la suite antes de ejecutarse: cookies de un usuario de
+# pruebas. Se regenera sola en cada ejecución y no pinta nada en el repositorio.
+apps/e2e/.auth/
