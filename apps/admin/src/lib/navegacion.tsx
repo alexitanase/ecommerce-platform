@@ -336,7 +336,7 @@ export function construirNavegacion(t: (clave: string) => string): SeccionNav[] 
           etiqueta: t('nav.metodos_pago'),
           permiso: 'payments:read',
           icono: <Ico d={ICONOS.pagos} />,
-          alias: ['pasarelas', 'stripe', 'cripto', 'paypal'],
+          alias: ['pasarelas', 'stripe', 'payiad', 'cripto', 'paypal'],
         },
         {
           ruta: '/envios',

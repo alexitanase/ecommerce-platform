@@ -1,4 +1,5 @@
 import { NowPaymentsProvider } from '../providers/nowpayments.provider.js';
+import { PayiadProvider } from '../providers/payiad.provider.js';
 import { RevolutProvider } from '../providers/revolut.provider.js';
 import { StripeProvider } from '../providers/stripe.provider.js';
 import type { PaymentProvider } from './types.js';
@@ -9,7 +10,7 @@ import type { PaymentProvider } from './types.js';
  * El orden de esta lista es el orden en que se ofrecen en el checkout:
  * NOWPayments primero por decisión de negocio.
  */
-export type ClavePasarela = 'nowpayments' | 'revolut' | 'stripe' | 'paypal';
+export type ClavePasarela = 'nowpayments' | 'revolut' | 'stripe' | 'payiad' | 'paypal';
 
 export const PASARELAS_DISPONIBLES: {
   key: ClavePasarela;
@@ -45,6 +46,15 @@ export const PASARELAS_DISPONIBLES: {
     ],
   },
   {
+    key: 'payiad',
+    nombre: 'Payiad (tarjeta)',
+    implementada: true,
+    camposCredenciales: [
+      { clave: 'secretKey', etiqueta: 'Secret Key', secreto: true },
+      { clave: 'webhookSecret', etiqueta: 'Webhook Secret', secreto: true },
+    ],
+  },
+  {
     key: 'paypal',
     nombre: 'PayPal',
     implementada: false,
@@ -73,6 +83,9 @@ export function crearPasarela(
      */
     case 'stripe':
       return new StripeProvider(credenciales);
+    // Como Stripe: el modo lo decide la clave (`sk_test_…` / `sk_live_…`).
+    case 'payiad':
+      return new PayiadProvider(credenciales);
     case 'paypal':
       throw new Error(
         `La pasarela "${key}" está declarada pero aún no implementada. ` +

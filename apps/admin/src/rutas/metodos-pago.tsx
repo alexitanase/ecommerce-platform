@@ -21,7 +21,7 @@ import { Encabezado } from '@/componentes/encabezado';
  */
 
 interface Pasarela {
-  key: 'nowpayments' | 'revolut' | 'stripe' | 'paypal';
+  key: 'nowpayments' | 'revolut' | 'stripe' | 'payiad' | 'paypal';
   nombre: string;
   activa: boolean;
   orden: number;

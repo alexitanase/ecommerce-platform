@@ -192,6 +192,40 @@ export const INTEGRACIONES: DefinicionIntegracion[] = [
     desdeEntorno: { secretKey: 'STRIPE_SECRET_KEY', webhookSecret: 'STRIPE_WEBHOOK_SECRET' },
   },
   {
+    key: 'payiad',
+    familia: 'pago',
+    nombre: 'Payiad',
+    descripcion:
+      'Tarjeta (Visa, Mastercard, Amex) con el pago en su página: los datos de la tarjeta no ' +
+      'pasan por nuestro servidor. Los reembolsos todavía se hacen desde su panel: Payiad aún ' +
+      'no ha publicado esa parte de la API.',
+    donde: 'Panel de Payiad → Developers → API keys y Webhooks.',
+    retornos: [{ tipo: 'webhook', ruta: '/api/v1/payments/webhook/payiad' }],
+    implementada: true,
+    credenciales: [
+      {
+        clave: 'secretKey',
+        etiqueta: 'Clave secreta',
+        secreto: true,
+        obligatorio: true,
+        ayuda:
+          'La `sk_test_…` (sandbox) o `sk_live_…` (producción). El modo lo decide la propia ' +
+          'clave. Si la restringes por permisos, necesita `payments:read` y `payments:write`.',
+      },
+      {
+        clave: 'webhookSecret',
+        etiqueta: 'Secreto del webhook',
+        secreto: true,
+        obligatorio: true,
+        ayuda:
+          'El que da Payiad al crear el endpoint. Firma los avisos de pago: sin él se ' +
+          'aceptarían cobros falsos. Suscribe los eventos `payment.*`.',
+      },
+    ],
+    ajustes: [],
+    desdeEntorno: { secretKey: 'PAYIAD_SECRET_KEY', webhookSecret: 'PAYIAD_WEBHOOK_SECRET' },
+  },
+  {
     key: 'paypal',
     familia: 'pago',
     nombre: 'PayPal',

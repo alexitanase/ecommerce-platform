@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const iniciarCobroSchema = z.object({
   orderId: z.string().min(1),
-  provider: z.enum(['nowpayments', 'revolut', 'stripe', 'paypal']).optional(),
+  provider: z.enum(['nowpayments', 'revolut', 'stripe', 'payiad', 'paypal']).optional(),
   /** Moneda en la que quiere pagar el cliente: BTC, ETH, USDTTRC20… */
   payCurrency: z.string().trim().max(20).optional(),
 });
@@ -19,7 +19,7 @@ export class IniciarCobroDto extends createZodDto(iniciarCobroSchema) {}
  * con acceso al panel puede leerlas.
  */
 export const configPasarelaSchema = z.object({
-  key: z.enum(['nowpayments', 'revolut', 'stripe', 'paypal']),
+  key: z.enum(['nowpayments', 'revolut', 'stripe', 'payiad', 'paypal']),
   activa: z.boolean(),
   orden: z.number().int().min(0).max(99),
   minCents: z.number().int().min(0),

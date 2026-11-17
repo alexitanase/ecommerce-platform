@@ -30,10 +30,16 @@ const TODO_OK = {
 };
 
 describe('Lectura del ajuste guardado', () => {
-  it('devuelve las cuatro pasarelas aunque no haya nada guardado', () => {
+  it('devuelve todas las pasarelas aunque no haya nada guardado', () => {
     // El panel tiene que poder mostrar y activar las que aún no se usan.
     const configs = normalizar(null);
-    expect(configs.map((c) => c.key)).toEqual(['nowpayments', 'revolut', 'stripe', 'paypal']);
+    expect(configs.map((c) => c.key)).toEqual([
+      'nowpayments',
+      'revolut',
+      'stripe',
+      'payiad',
+      'paypal',
+    ]);
   });
 
   it('deja activada solo NOWPayments por defecto', () => {
@@ -71,8 +77,8 @@ describe('Lectura del ajuste guardado', () => {
 
   it('ignora basura sin quedarse sin configuración', () => {
     // Un ajuste corrupto no puede tumbar el checkout entero.
-    expect(normalizar('vaya').map((c) => c.key)).toHaveLength(4);
-    expect(normalizar([{ sinClave: true }, 42]).map((c) => c.key)).toHaveLength(4);
+    expect(normalizar('vaya').map((c) => c.key)).toHaveLength(5);
+    expect(normalizar([{ sinClave: true }, 42]).map((c) => c.key)).toHaveLength(5);
     expect(
       normalizar([{ key: 'nowpayments', minCents: -50 }]).find((c) => c.key === 'nowpayments')
         ?.minCents,

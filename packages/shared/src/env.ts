@@ -194,6 +194,8 @@ export const envSchema = z.object({
   REVOLUT_SANDBOX: bool.default(true),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  PAYIAD_SECRET_KEY: z.string().optional(),
+  PAYIAD_WEBHOOK_SECRET: z.string().optional(),
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
 

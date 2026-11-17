@@ -35,6 +35,7 @@ export type ClaveMetodo =
 const POR_PASARELA: Record<string, ClaveMetodo[]> = {
   stripe: ['visa', 'mastercard', 'amex', 'applepay', 'googlepay', 'bizum'],
   revolut: ['visa', 'mastercard', 'revolut'],
+  payiad: ['visa', 'mastercard', 'amex'],
   paypal: ['paypal'],
   nowpayments: ['cripto'],
 };

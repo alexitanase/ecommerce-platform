@@ -1694,7 +1694,7 @@ model Payment {
   id      String @id
   orderId String
 
-  /// "nowpayments" | "revolut" | "stripe" | "paypal"
+  /// "nowpayments" | "revolut" | "stripe" | "payiad" | "paypal"
   provider   String
   externalId String?
 
